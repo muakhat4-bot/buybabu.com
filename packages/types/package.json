@@ -1,0 +1,19 @@
+{
+  "name": "@villex/types",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared TypeScript definitions and Zod schemas for Villex",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "@villex/tsconfig": "*",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}

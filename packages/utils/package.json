@@ -1,0 +1,16 @@
+{
+  "name": "@villex/utils",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared utilities for Villex",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "@villex/tsconfig": "*",
+    "typescript": "^5.7.2"
+  }
+}

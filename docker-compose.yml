@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: villex-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: villex
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # 2. Redis Caching & Queue Store
+  redis:
+    image: redis:7-alpine
+    container_name: villex-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    restart: unless-stopped
+
+  # 3. Meilisearch Instant Search Engine
+  meilisearch:
+    image: getmeili/meilisearch:v1.9
+    container_name: villex-meilisearch
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=masterKey1234567890
+      - MEILI_ENV=development
+    volumes:
+      - meilisearch_data:/data.ms
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  meilisearch_data:
+    driver: local

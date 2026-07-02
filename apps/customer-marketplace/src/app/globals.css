@@ -1,0 +1,99 @@
+@import "@villex/design-system/global.css";
+
+/* Ken Burns Zoom & Pan Background Effect */
+@keyframes kenburns {
+  0% {
+    transform: scale(1.05) translate(0%, 0%);
+  }
+  50% {
+    transform: scale(1.12) translate(-1%, 0.5%);
+  }
+  100% {
+    transform: scale(1.05) translate(0%, 0%);
+  }
+}
+
+.animate-kenburns {
+  animation: kenburns 30s ease-in-out infinite;
+}
+
+/* Floating Elements bobbing effect */
+@keyframes float-badge {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1.5deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+@keyframes float-badge-reverse {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(8px) rotate(-1.5deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+.animate-float-badge {
+  animation: float-badge 6s ease-in-out infinite;
+}
+
+.animate-float-badge-reverse {
+  animation: float-badge-reverse 7s ease-in-out infinite;
+}
+
+/* 3D Carousel Transition classes */
+.carousel-3d-container {
+  perspective: 1500px;
+  transform-style: preserve-3d;
+}
+
+.carousel-3d-slide {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.8s ease, z-index 0.8s step-end;
+}
+
+/* Active Slide position */
+.slide-active {
+  transform: rotateY(0deg) translateZ(0px);
+  opacity: 1;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* 3D exit and entry states */
+.slide-exit-next {
+  transform: rotateY(-60deg) translateZ(-400px) translateX(-200px);
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.slide-enter-next {
+  transform: rotateY(60deg) translateZ(-400px) translateX(200px);
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.slide-exit-prev {
+  transform: rotateY(60deg) translateZ(-400px) translateX(200px);
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.slide-enter-prev {
+  transform: rotateY(-60deg) translateZ(-400px) translateX(-200px);
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+

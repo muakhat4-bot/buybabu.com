@@ -1,0 +1,17 @@
+{
+  "name": "@villex/design-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Design system variables, global CSS, and Tailwind config for Villex",
+  "main": "tailwind.config.js",
+  "files": [
+    "tailwind.config.js",
+    "global.css"
+  ],
+  "peerDependencies": {
+    "tailwindcss": "^3.0.0"
+  },
+  "dependencies": {
+    "tailwindcss-animate": "^1.0.7"
+  }
+}

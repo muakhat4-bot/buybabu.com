@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@villex/*": ["packages/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".next"]
+}
