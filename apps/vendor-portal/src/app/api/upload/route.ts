@@ -1,16 +1,9 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@villex/supabase';
 import * as path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project-id.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
-
-const supabaseServer = createClient(supabaseUrl, supabaseKey);
-
-// Define file type validation rules
 const ALLOWED_MIME_TYPES = {
   images: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
   documents: ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -97,7 +90,7 @@ export async function POST(request: Request) {
 
     // Auto-create/ensure bucket exists
     try {
-      await supabaseServer.storage.createBucket(bucketName, {
+      await supabaseAdmin.storage.createBucket(bucketName, {
         public: true
       });
     } catch (e) {
@@ -105,7 +98,7 @@ export async function POST(request: Request) {
     }
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabaseServer.storage
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from(bucketName)
       .upload(fileName, buffer, {
         contentType: mimeType,
@@ -117,24 +110,38 @@ export async function POST(request: Request) {
     }
 
     // Get public URL
-    const { data: { publicUrl } } = supabaseServer.storage
+    const { data: { publicUrl } } = supabaseAdmin.storage
       .from(bucketName)
       .getPublicUrl(fileName);
 
     // Save Attachment record to DB
-    const attachment = await prisma.attachment.create({
-      data: {
-        fileName: file.name,
-        fileUrl: publicUrl,
-        fileType: mimeType,
-        fileSize: file.size
-      }
-    });
+    const { data: attachment, error: dbError } = await supabaseAdmin
+      .from('attachments')
+      .insert({
+        file_name: file.name,
+        file_url: publicUrl,
+        file_type: mimeType,
+        file_size: file.size
+      })
+      .select()
+      .single();
+
+    if (dbError) throw dbError;
+
+    const mappedAttachment = {
+      id: attachment.id,
+      fileName: attachment.file_name,
+      fileUrl: attachment.file_url,
+      fileType: attachment.file_type,
+      fileSize: attachment.file_size,
+      createdAt: attachment.created_at,
+      updatedAt: attachment.updated_at
+    };
 
     return NextResponse.json({
       success: true,
       url: publicUrl,
-      attachment
+      attachment: mappedAttachment
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

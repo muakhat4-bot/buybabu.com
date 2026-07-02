@@ -1,51 +1,51 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
+import { supabaseAdmin, OrderStatus, PaymentMethod, PaymentStatus } from '@villex/supabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const dbOrders = await prisma.order.findMany({
-      include: {
-        items: true,
-        payment: true,
-        user: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    const { data: dbOrders, error } = await supabaseAdmin
+      .from('orders')
+      .select('*, order_items(*), payments(*), users(*)')
+      .order('created_at', { ascending: false });
 
-    const mapped = dbOrders.map(o => {
+    if (error) throw error;
+
+    const mapped = (dbOrders || []).map(o => {
+      const payment = Array.isArray(o.payments) ? o.payments[0] : o.payments;
+      const user = o.users;
+
       let payMethodStr = 'Cash on Delivery (COD)';
-      if (o.payment?.paymentMethod === PaymentMethod.EASYPAISA) payMethodStr = 'EasyPaisa';
-      if (o.payment?.paymentMethod === PaymentMethod.JAZZCASH) payMethodStr = 'JazzCash';
+      if (payment?.payment_method === PaymentMethod.EASYPAISA) payMethodStr = 'EasyPaisa';
+      if (payment?.payment_method === PaymentMethod.JAZZCASH) payMethodStr = 'JazzCash';
 
       let statusStr = 'PENDING';
-      if (o.orderStatus === OrderStatus.PROCESSING) statusStr = 'PROCESSING';
-      if (o.orderStatus === OrderStatus.SHIPPED) statusStr = 'SHIPPED';
-      if (o.orderStatus === OrderStatus.DELIVERED) statusStr = 'DELIVERED';
-      if (o.orderStatus === OrderStatus.CANCELLED) statusStr = 'CANCELLED';
+      if (o.order_status === OrderStatus.PROCESSING) statusStr = 'PROCESSING';
+      if (o.order_status === OrderStatus.SHIPPED) statusStr = 'SHIPPED';
+      if (o.order_status === OrderStatus.DELIVERED) statusStr = 'DELIVERED';
+      if (o.order_status === OrderStatus.CANCELLED) statusStr = 'CANCELLED';
+
+      const items = o.order_items || [];
 
       return {
-        id: o.orderNumber,
-        customerName: `${o.user.firstName} ${o.user.lastName}`,
-        customerPhone: (o.shippingAddress as any)?.phone || o.user.phone || '',
-        shippingAddress: (o.shippingAddress as any)?.address || '',
-        date: o.createdAt.toISOString().split('T')[0],
-        total: Number(o.totalAmount),
+        id: o.order_number,
+        customerName: user ? `${user.first_name} ${user.last_name}` : 'Unknown Customer',
+        customerPhone: (o.shipping_address as any)?.phone || user?.phone || '',
+        shippingAddress: (o.shipping_address as any)?.address || '',
+        date: new Date(o.created_at).toISOString().split('T')[0],
+        total: Number(o.total_amount),
         paymentMethod: payMethodStr,
         status: statusStr,
-        itemsCount: o.items.reduce((acc, item) => acc + item.quantity, 0),
-        walletPhone: (o.payment?.gatewayResponse as any)?.phone || undefined,
-        walletTid: o.payment?.transactionId || undefined,
-        items: o.items.map(item => ({
-          id: item.variantSku,
-          name: item.productName,
+        itemsCount: items.reduce((acc: number, item: any) => acc + item.quantity, 0),
+        walletPhone: (payment?.gateway_response as any)?.phone || undefined,
+        walletTid: payment?.transaction_id || undefined,
+        items: items.map((item: any) => ({
+          id: item.variant_sku,
+          name: item.product_name,
           image: '',
           qty: item.quantity,
-          price: Number(item.unitPrice)
+          price: Number(item.unit_price)
         }))
       };
     });
@@ -60,16 +60,18 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
 
-    const order = await prisma.order.findUnique({
-      where: { orderNumber: body.id },
-      include: { items: true }
-    });
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('order_number', body.id)
+      .maybeSingle();
 
+    if (orderError) throw orderError;
     if (!order) {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
     }
 
-    const oldStatus = order.orderStatus;
+    const oldStatus = order.order_status;
     
     // Map new status
     let newStatus = oldStatus;
@@ -80,37 +82,46 @@ export async function PUT(request: Request) {
     if (body.status === 'CANCELLED' || body.status === 'REFUNDED') newStatus = OrderStatus.CANCELLED;
 
     // Update order
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        orderStatus: newStatus
-      }
-    });
+    const { error: updateOrderError } = await supabaseAdmin
+      .from('orders')
+      .update({ order_status: newStatus })
+      .eq('id', order.id);
+
+    if (updateOrderError) throw updateOrderError;
 
     // Update order items status
-    await prisma.orderItem.updateMany({
-      where: { orderId: order.id },
-      data: { status: newStatus }
-    });
+    const { error: updateItemsError } = await supabaseAdmin
+      .from('order_items')
+      .update({ status: newStatus })
+      .eq('order_id', order.id);
+
+    if (updateItemsError) throw updateItemsError;
 
     // Handle wallet transitions if status changed
     if (newStatus !== oldStatus) {
-      // Find vendor
-      let vendorId = order.items[0]?.vendorId;
+      const items = order.order_items || [];
+      let vendorId = items[0]?.vendor_id;
       if (!vendorId) {
         // Fallback
-        const fallbackVendor = await prisma.vendor.findFirst({
-          where: { supportEmail: 'contact@electropulse.pk' }
-        });
-        vendorId = fallbackVendor?.id;
+        const { data: fallbackVendor, error: fallbackError } = await supabaseAdmin
+          .from('vendors')
+          .select('*')
+          .eq('support_email', 'contact@electropulse.pk')
+          .maybeSingle();
+
+        if (!fallbackError && fallbackVendor) {
+          vendorId = fallbackVendor.id;
+        }
       }
 
       if (vendorId) {
-        const vendor = await prisma.vendor.findUnique({
-          where: { id: vendorId }
-        });
+        const { data: vendor, error: vendorError } = await supabaseAdmin
+          .from('vendors')
+          .select('*')
+          .eq('id', vendorId)
+          .maybeSingle();
 
-        if (vendor) {
+        if (!vendorError && vendor) {
           const wallet = (vendor.wallet as any) || {
             availableBalance: 0,
             pendingBalance: 0,
@@ -119,7 +130,7 @@ export async function PUT(request: Request) {
             transactions: []
           };
 
-          const orderTotal = Number(order.totalAmount);
+          const orderTotal = Number(order.total_amount);
           const today = new Date().toISOString().split('T')[0];
 
           if (newStatus === OrderStatus.DELIVERED && oldStatus !== OrderStatus.DELIVERED) {
@@ -133,23 +144,23 @@ export async function PUT(request: Request) {
             wallet.lifetimeCommission = (wallet.lifetimeCommission || 0) + commission;
 
             wallet.transactions.push({
-              id: `txn-sale-${order.orderNumber}-${Date.now()}`,
+              id: `txn-sale-${order.order_number}-${Date.now()}`,
               type: 'SALE',
               amount: orderTotal,
-              orderId: order.orderNumber,
+              orderId: order.order_number,
               date: today,
               status: 'COMPLETED',
-              details: `Gross Sale for Order #${order.orderNumber}`
+              details: `Gross Sale for Order #${order.order_number}`
             });
 
             wallet.transactions.push({
-              id: `txn-comm-${order.orderNumber}-${Date.now()}`,
+              id: `txn-comm-${order.order_number}-${Date.now()}`,
               type: 'COMMISSION',
               amount: commission,
-              orderId: order.orderNumber,
+              orderId: order.order_number,
               date: today,
               status: 'COMPLETED',
-              details: `10% Villex Commission for Order #${order.orderNumber}`
+              details: `10% Villex Commission for Order #${order.order_number}`
             });
           }
 
@@ -163,34 +174,36 @@ export async function PUT(request: Request) {
               wallet.lifetimeCommission = Math.max(0, (wallet.lifetimeCommission || 0) - commission);
 
               wallet.transactions.push({
-                id: `txn-ref-${order.orderNumber}-${Date.now()}`,
+                id: `txn-ref-${order.order_number}-${Date.now()}`,
                 type: 'REFUND',
                 amount: orderTotal,
-                orderId: order.orderNumber,
+                orderId: order.order_number,
                 date: today,
                 status: 'COMPLETED',
-                details: `Refund for Order #${order.orderNumber} (reversing net credit PKR ${netAmount.toLocaleString()})`
+                details: `Refund for Order #${order.order_number} (reversing net credit PKR ${netAmount.toLocaleString()})`
               });
             } else {
               wallet.pendingBalance = Math.max(0, (wallet.pendingBalance || 0) - orderTotal);
 
               wallet.transactions.push({
-                id: `txn-ref-${order.orderNumber}-${Date.now()}`,
+                id: `txn-ref-${order.order_number}-${Date.now()}`,
                 type: 'REFUND',
                 amount: orderTotal,
-                orderId: order.orderNumber,
+                orderId: order.order_number,
                 date: today,
                 status: 'COMPLETED',
-                details: `Cancellation/Refund for Order #${order.orderNumber}`
+                details: `Cancellation/Refund for Order #${order.order_number}`
               });
             }
           }
 
           // Update vendor wallet
-          await prisma.vendor.update({
-            where: { id: vendor.id },
-            data: { wallet }
-          });
+          const { error: updateVendorError } = await supabaseAdmin
+            .from('vendors')
+            .update({ wallet })
+            .eq('id', vendor.id);
+
+          if (updateVendorError) throw updateVendorError;
         }
       }
     }

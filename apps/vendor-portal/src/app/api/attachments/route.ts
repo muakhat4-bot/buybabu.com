@@ -1,14 +1,8 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@villex/supabase';
 import * as path from 'path';
 
 export const dynamic = 'force-dynamic';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project-id.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
-
-const supabaseServer = createClient(supabaseUrl, supabaseKey);
 
 export async function GET(request: Request) {
   try {
@@ -16,10 +10,27 @@ export async function GET(request: Request) {
     const type = searchParams.get('type'); // all, image, video, document
     const q = searchParams.get('q'); // search query
 
-    let attachments = await prisma.attachment.findMany({
-      where: q ? { fileName: { contains: q, mode: 'insensitive' } } : {},
-      orderBy: { createdAt: 'desc' }
-    });
+    let query = supabaseAdmin
+      .from('attachments')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (q) {
+      query = query.ilike('file_name', `%${q}%`);
+    }
+
+    const { data: dbAttachments, error } = await query;
+    if (error) throw error;
+
+    let attachments = (dbAttachments || []).map(a => ({
+      id: a.id,
+      fileName: a.file_name,
+      fileUrl: a.file_url,
+      fileType: a.file_type,
+      fileSize: a.file_size,
+      createdAt: a.created_at,
+      updatedAt: a.updated_at
+    }));
 
     if (type && type !== 'all') {
       if (type === 'image') {
@@ -46,20 +57,23 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Attachment ID is required' }, { status: 400 });
     }
 
-    const attachment = await prisma.attachment.findUnique({
-      where: { id }
-    });
+    const { data: attachment, error: findError } = await supabaseAdmin
+      .from('attachments')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
 
+    if (findError) throw findError;
     if (!attachment) {
       return NextResponse.json({ error: 'Attachment not found' }, { status: 404 });
     }
 
-    // Extract bucket name and file path from publicUrl
+    // Extract bucket name and file path from file_url
     let bucketName = 'temporary-files';
     let storageFilePath = '';
 
     try {
-      const parsedUrl = new URL(attachment.fileUrl);
+      const parsedUrl = new URL(attachment.file_url);
       const pathParts = parsedUrl.pathname.split('/');
       const publicIndex = pathParts.indexOf('public');
       if (publicIndex !== -1 && pathParts.length > publicIndex + 2) {
@@ -67,11 +81,11 @@ export async function DELETE(request: Request) {
         storageFilePath = decodeURIComponent(pathParts.slice(publicIndex + 2).join('/'));
       }
     } catch (e) {
-      storageFilePath = path.basename(attachment.fileUrl);
+      storageFilePath = path.basename(attachment.file_url);
     }
 
     if (storageFilePath) {
-      const { error: deleteError } = await supabaseServer.storage
+      const { error: deleteError } = await supabaseAdmin.storage
         .from(bucketName)
         .remove([storageFilePath]);
       if (deleteError) {
@@ -80,9 +94,12 @@ export async function DELETE(request: Request) {
     }
 
     // Delete record from DB
-    await prisma.attachment.delete({
-      where: { id }
-    });
+    const { error: deleteDbError } = await supabaseAdmin
+      .from('attachments')
+      .delete()
+      .eq('id', id);
+
+    if (deleteDbError) throw deleteDbError;
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

@@ -1,20 +1,21 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { supabaseAdmin } from '@villex/supabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const dbProducts = await prisma.product.findMany({
-      include: {
-        vendor: true,
-        category: true,
-        variants: true
-      }
-    });
+    const { data: dbProducts, error } = await supabaseAdmin
+      .from('products')
+      .select('*, vendors(*), categories(*), product_variants(*)');
 
-    const mapped = dbProducts.map(p => {
-      const defaultVariant = p.variants[0];
+    if (error) throw error;
+
+    const mapped = (dbProducts || []).map(p => {
+      const vendor = p.vendors;
+      const category = p.categories;
+      const variants = p.product_variants || [];
+      const defaultVariant = variants[0];
       const imagesObj = (p.images as any) || { main: '', gallery: [] };
       const image = imagesObj.main || 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=500&auto=format&fit=crop&q=80';
 
@@ -22,15 +23,15 @@ export async function GET() {
         id: p.id,
         sku: defaultVariant?.sku || '',
         name: p.name,
-        category: p.category.name.toLowerCase(),
+        category: category ? category.name.toLowerCase() : '',
         price: Number(defaultVariant?.price || 0),
         brand: p.brand || undefined,
         description: p.description,
         image,
-        storeId: p.vendor.storeSlug,
-        storeName: p.vendor.storeName,
-        approvalStatus: p.approvalStatus || 'APPROVED',
-        rejectionReason: p.rejectionReason || undefined
+        storeId: vendor?.store_slug || '',
+        storeName: vendor?.store_name || '',
+        approvalStatus: p.approval_status || 'APPROVED',
+        rejectionReason: p.rejection_reason || undefined
       };
     });
 
@@ -44,21 +45,26 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
 
-    const product = await prisma.product.findUnique({
-      where: { id: body.id }
-    });
+    const { data: product, error: findError } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('id', body.id)
+      .maybeSingle();
 
+    if (findError) throw findError;
     if (!product) {
       return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 });
     }
 
-    await prisma.product.update({
-      where: { id: body.id },
-      data: {
-        approvalStatus: body.approvalStatus,
-        rejectionReason: body.rejectionReason || null
-      }
-    });
+    const { error: updateError } = await supabaseAdmin
+      .from('products')
+      .update({
+        approval_status: body.approvalStatus,
+        rejection_reason: body.rejectionReason || null
+      })
+      .eq('id', body.id);
+
+    if (updateError) throw updateError;
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

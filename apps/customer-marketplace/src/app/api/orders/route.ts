@@ -1,53 +1,51 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
+import { supabaseAdmin, OrderStatus, PaymentMethod, PaymentStatus } from '@villex/supabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const dbOrders = await prisma.order.findMany({
-      include: {
-        items: true,
-        payment: true,
-        user: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    const { data: dbOrders, error } = await supabaseAdmin
+      .from('orders')
+      .select('*, order_items(*), payments(*), users(*)')
+      .order('created_at', { ascending: false });
 
-    const mapped = dbOrders.map(o => {
-      // Determine paymentMethod string
+    if (error) throw error;
+
+    const mapped = (dbOrders || []).map(o => {
+      const payment = Array.isArray(o.payments) ? o.payments[0] : o.payments;
+      const user = o.users;
+
       let payMethodStr = 'Cash on Delivery (COD)';
-      if (o.payment?.paymentMethod === PaymentMethod.EASYPAISA) payMethodStr = 'EasyPaisa';
-      if (o.payment?.paymentMethod === PaymentMethod.JAZZCASH) payMethodStr = 'JazzCash';
+      if (payment?.payment_method === PaymentMethod.EASYPAISA) payMethodStr = 'EasyPaisa';
+      if (payment?.payment_method === PaymentMethod.JAZZCASH) payMethodStr = 'JazzCash';
 
-      // Determine status string
       let statusStr = 'PENDING';
-      if (o.orderStatus === OrderStatus.PROCESSING) statusStr = 'PROCESSING';
-      if (o.orderStatus === OrderStatus.SHIPPED) statusStr = 'SHIPPED';
-      if (o.orderStatus === OrderStatus.DELIVERED) statusStr = 'DELIVERED';
-      if (o.orderStatus === OrderStatus.CANCELLED) statusStr = 'CANCELLED';
+      if (o.order_status === OrderStatus.PROCESSING) statusStr = 'PROCESSING';
+      if (o.order_status === OrderStatus.SHIPPED) statusStr = 'SHIPPED';
+      if (o.order_status === OrderStatus.DELIVERED) statusStr = 'DELIVERED';
+      if (o.order_status === OrderStatus.CANCELLED) statusStr = 'CANCELLED';
+
+      const items = o.order_items || [];
 
       return {
-        id: o.orderNumber,
-        customerName: `${o.user.firstName} ${o.user.lastName}`,
-        customerPhone: (o.shippingAddress as any)?.phone || o.user.phone || '',
-        shippingAddress: (o.shippingAddress as any)?.address || '',
-        date: o.createdAt.toISOString().split('T')[0],
-        total: Number(o.totalAmount),
+        id: o.order_number,
+        customerName: user ? `${user.first_name} ${user.last_name}` : 'Unknown Customer',
+        customerPhone: (o.shipping_address as any)?.phone || user?.phone || '',
+        shippingAddress: (o.shipping_address as any)?.address || '',
+        date: new Date(o.created_at).toISOString().split('T')[0],
+        total: Number(o.total_amount),
         paymentMethod: payMethodStr,
         status: statusStr,
-        itemsCount: o.items.reduce((acc, item) => acc + item.quantity, 0),
-        walletPhone: (o.payment?.gatewayResponse as any)?.phone || undefined,
-        walletTid: o.payment?.transactionId || undefined,
-        items: o.items.map(item => ({
-          id: item.variantSku, // or mapping to product ID
-          name: item.productName,
-          image: '', // We can look this up if needed, or leave empty
+        itemsCount: items.reduce((acc: number, item: any) => acc + item.quantity, 0),
+        walletPhone: (payment?.gateway_response as any)?.phone || undefined,
+        walletTid: payment?.transaction_id || undefined,
+        items: items.map((item: any) => ({
+          id: item.variant_sku,
+          name: item.product_name,
+          image: '',
           qty: item.quantity,
-          price: Number(item.unitPrice)
+          price: Number(item.unit_price)
         }))
       };
     });
@@ -63,9 +61,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     
     // Get default customer user
-    const customerUser = await prisma.user.findUnique({
-      where: { email: 'customer@villex.pk' }
-    });
+    const { data: customerUser, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', 'customer@villex.pk')
+      .maybeSingle();
+
+    if (userError) throw userError;
     if (!customerUser) {
       return NextResponse.json({ success: false, error: 'Customer user not found' }, { status: 400 });
     }
@@ -85,30 +87,36 @@ export async function POST(request: Request) {
     const orderNumber = body.id || `VLX-${Math.floor(100000 + Math.random() * 900000)}`;
 
     // Create Order
-    const order = await prisma.order.create({
-      data: {
-        userId: customerUser.id,
-        orderNumber,
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .insert({
+        user_id: customerUser.id,
+        order_number: orderNumber,
         subtotal: body.total,
-        totalAmount: body.total,
-        shippingAddress: { address: body.shippingAddress || 'N/A', phone: body.customerPhone || '' },
-        billingAddress: { address: body.shippingAddress || 'N/A', phone: body.customerPhone || '' },
-        orderStatus,
-        createdAt: new Date(body.date || Date.now())
-      }
-    });
+        total_amount: body.total,
+        shipping_address: { address: body.shippingAddress || 'N/A', phone: body.customerPhone || '' },
+        billing_address: { address: body.shippingAddress || 'N/A', phone: body.customerPhone || '' },
+        order_status: orderStatus,
+        created_at: new Date(body.date || Date.now()).toISOString()
+      })
+      .select()
+      .single();
+
+    if (orderError) throw orderError;
 
     // Create Payment
-    await prisma.payment.create({
-      data: {
-        orderId: order.id,
-        paymentMethod: payMethod,
+    const { error: paymentError } = await supabaseAdmin
+      .from('payments')
+      .insert({
+        order_id: order.id,
+        payment_method: payMethod,
         amount: body.total,
         status: orderStatus === OrderStatus.DELIVERED ? PaymentStatus.COMPLETED : PaymentStatus.PENDING,
-        transactionId: body.walletTid || null,
-        gatewayResponse: body.walletPhone ? { phone: body.walletPhone } : {}
-      }
-    });
+        transaction_id: body.walletTid || null,
+        gateway_response: body.walletPhone ? { phone: body.walletPhone } : {}
+      });
+
+    if (paymentError) throw paymentError;
 
     // Find and update Vendor Wallet
     let matchedVendor: any = null;
@@ -116,50 +124,61 @@ export async function POST(request: Request) {
     if (body.items && body.items.length > 0) {
       for (const item of body.items) {
         // Find variant
-        let variant = await prisma.productVariant.findFirst({
-          where: {
-            OR: [
-              { sku: item.id },
-              { product: { name: item.name } }
-            ]
-          },
-          include: { product: { include: { vendor: true } } }
-        });
+        let { data: variants } = await supabaseAdmin
+          .from('product_variants')
+          .select('*, products(*, vendors(*))')
+          .eq('sku', item.id);
+
+        let variant = variants?.[0];
+        if (!variant) {
+          const { data: variantsByName } = await supabaseAdmin
+            .from('product_variants')
+            .select('*, products(*, vendors(*))')
+            .eq('products.name', item.name);
+          variant = variantsByName?.[0];
+        }
 
         if (!variant) {
-          // Fallback first variant
-          variant = await prisma.productVariant.findFirst({
-            include: { product: { include: { vendor: true } } }
-          });
+          const { data: fallbackVariants } = await supabaseAdmin
+            .from('product_variants')
+            .select('*, products(*, vendors(*))')
+            .limit(1);
+          variant = fallbackVariants?.[0];
         }
 
         if (variant) {
-          matchedVendor = variant.product.vendor;
+          matchedVendor = variant.products?.vendors;
           const commission = Math.round(Number(item.price) * item.qty * 0.10);
 
-          await prisma.orderItem.create({
-            data: {
-              orderId: order.id,
-              variantId: variant.id,
-              vendorId: variant.product.vendorId,
-              productName: item.name,
-              variantSku: variant.sku,
-              unitPrice: item.price,
+          const { error: orderItemError } = await supabaseAdmin
+            .from('order_items')
+            .insert({
+              order_id: order.id,
+              variant_id: variant.id,
+              vendor_id: variant.products.vendor_id,
+              product_name: item.name,
+              variant_sku: variant.sku,
+              unit_price: item.price,
               quantity: item.qty,
               subtotal: item.price * item.qty,
-              commissionFee: commission,
+              commission_fee: commission,
               status: orderStatus
-            }
-          });
+            });
+
+          if (orderItemError) throw orderItemError;
         }
       }
     }
 
     // Default vendor if none matched
     if (!matchedVendor) {
-      matchedVendor = await prisma.vendor.findFirst({
-        where: { supportEmail: 'contact@electropulse.pk' }
-      });
+      const { data: fallbackVendor } = await supabaseAdmin
+        .from('vendors')
+        .select('*')
+        .eq('support_email', 'contact@electropulse.pk')
+        .maybeSingle();
+
+      matchedVendor = fallbackVendor;
     }
 
     if (matchedVendor) {
@@ -172,10 +191,12 @@ export async function POST(request: Request) {
       };
       wallet.pendingBalance = (wallet.pendingBalance || 0) + body.total;
 
-      await prisma.vendor.update({
-        where: { id: matchedVendor.id },
-        data: { wallet }
-      });
+      const { error: walletUpdateError } = await supabaseAdmin
+        .from('vendors')
+        .update({ wallet })
+        .eq('id', matchedVendor.id);
+
+      if (walletUpdateError) throw walletUpdateError;
     }
 
     return NextResponse.json({ success: true, order: body });
@@ -188,34 +209,39 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
 
-    const order = await prisma.order.findUnique({
-      where: { orderNumber: body.id }
-    });
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('order_number', body.id)
+      .maybeSingle();
 
+    if (orderError) throw orderError;
     if (!order) {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
     }
 
     // Map orderStatus
-    let orderStatus = order.orderStatus;
+    let orderStatus = order.order_status;
     if (body.status === 'PROCESSING') orderStatus = OrderStatus.PROCESSING;
     if (body.status === 'SHIPPED') orderStatus = OrderStatus.SHIPPED;
     if (body.status === 'DELIVERED') orderStatus = OrderStatus.DELIVERED;
     if (body.status === 'CANCELLED') orderStatus = OrderStatus.CANCELLED;
 
     // Update main order
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        orderStatus
-      }
-    });
+    const { error: updateOrderError } = await supabaseAdmin
+      .from('orders')
+      .update({ order_status: orderStatus })
+      .eq('id', order.id);
+
+    if (updateOrderError) throw updateOrderError;
 
     // Update order items status
-    await prisma.orderItem.updateMany({
-      where: { orderId: order.id },
-      data: { status: orderStatus }
-    });
+    const { error: updateItemsError } = await supabaseAdmin
+      .from('order_items')
+      .update({ status: orderStatus })
+      .eq('order_id', order.id);
+
+    if (updateItemsError) throw updateItemsError;
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

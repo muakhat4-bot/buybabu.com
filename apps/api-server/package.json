@@ -24,7 +24,6 @@
     "@nestjs/platform-express": "^11.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "@prisma/client": "^5.15.0",
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/passport": "^11.0.0",
     "passport": "^0.7.0",
@@ -37,7 +36,6 @@
     "@villex/utils": "*"
   },
   "devDependencies": {
-    "prisma": "^5.15.0",
     "@types/bcrypt": "^5.0.2",
     "@types/passport-jwt": "^4.0.1",
     "@eslint/eslintrc": "^3.2.0",
@@ -63,9 +61,6 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
   },
   "jest": {
     "moduleFileExtensions": [

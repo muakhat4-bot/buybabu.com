@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { supabaseAdmin } from '@villex/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,32 +12,33 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'productId is required' }, { status: 400 });
     }
 
-    const reviews = await prisma.review.findMany({
-      where: { productId },
-      include: {
-        user: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    const { data: reviews, error } = await supabaseAdmin
+      .from('reviews')
+      .select('*, users(*)')
+      .eq('product_id', productId)
+      .order('created_at', { ascending: false });
 
-    const mapped = reviews.map(r => ({
-      id: r.id,
-      productId: r.productId,
-      orderId: r.orderId,
-      name: `${r.user.firstName} ${r.user.lastName}`,
-      rating: r.rating,
-      comment: r.comment || '',
-      photos: (r.images as any) || [],
-      date: r.createdAt.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      }),
-      verified: true,
-      helpfulCount: 0
-    }));
+    if (error) throw error;
+
+    const mapped = (reviews || []).map(r => {
+      const user = r.users;
+      return {
+        id: r.id,
+        productId: r.product_id,
+        orderId: r.order_id,
+        name: user ? `${user.first_name} ${user.last_name}` : 'Anonymous',
+        rating: r.rating,
+        comment: r.comment || '',
+        photos: (r.images as any) || [],
+        date: new Date(r.created_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        verified: true,
+        helpfulCount: 0
+      };
+    });
 
     return NextResponse.json(mapped);
   } catch (err: any) {
@@ -54,55 +55,65 @@ export async function POST(request: Request) {
     }
 
     // Get default customer user
-    const customerUser = await prisma.user.findFirst({
-      where: { email: 'customer@villex.pk' }
-    });
+    const { data: customerUser, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', 'customer@villex.pk')
+      .maybeSingle();
+
+    if (userError) throw userError;
     if (!customerUser) {
       return NextResponse.json({ error: 'Customer user not found' }, { status: 400 });
     }
 
     // Create review
-    const review = await prisma.review.create({
-      data: {
-        userId: customerUser.id,
-        productId: body.productId,
-        orderId: body.orderId,
+    const { data: review, error: createError } = await supabaseAdmin
+      .from('reviews')
+      .insert({
+        user_id: customerUser.id,
+        product_id: body.productId,
+        order_id: body.orderId,
         rating: Number(body.rating),
         comment: body.comment,
         images: body.photos || []
-      }
-    });
+      })
+      .select()
+      .single();
+
+    if (createError) throw createError;
 
     // Update Product statistics
-    const product = await prisma.product.findUnique({
-      where: { id: body.productId }
-    });
+    const { data: product, error: findProductError } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('id', body.productId)
+      .maybeSingle();
 
-    if (product) {
-      const oldCount = product.reviewCount || 0;
-      const oldRating = Number(product.avgRating || 0);
+    if (!findProductError && product) {
+      const oldCount = product.review_count || 0;
+      const oldRating = Number(product.avg_rating || 0);
 
       const newCount = oldCount + 1;
       const newRating = Math.round(((oldRating * oldCount + Number(body.rating)) / newCount) * 10) / 10;
 
-      await prisma.product.update({
-        where: { id: body.productId },
-        data: {
-          reviewCount: newCount,
-          avgRating: newRating
-        }
-      });
+      await supabaseAdmin
+        .from('products')
+        .update({
+          review_count: newCount,
+          avg_rating: newRating
+        })
+        .eq('id', body.productId);
     }
 
     const newReview = {
       id: review.id,
-      productId: review.productId,
-      orderId: review.orderId,
+      productId: review.product_id,
+      orderId: review.order_id,
       name: body.customerName,
       rating: review.rating,
       comment: review.comment || '',
       photos: (review.images as any) || [],
-      date: review.createdAt.toLocaleDateString('en-US', {
+      date: new Date(review.created_at).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'

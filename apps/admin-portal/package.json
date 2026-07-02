@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node --max-old-space-size=2048 ../../node_modules/next/dist/bin/next dev -p 3002 --turbo",
-    "build": "next build",
+    "build": "node --max-old-space-size=2048 ../../node_modules/next/dist/bin/next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -16,7 +16,8 @@
     "@villex/sdk": "*",
     "@villex/ui": "*",
     "@villex/utils": "*",
-    "@villex/design-system": "*"
+    "@villex/design-system": "*",
+    "@villex/supabase": "*"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

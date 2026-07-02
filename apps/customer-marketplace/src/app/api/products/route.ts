@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { ProductStatus } from '@prisma/client';
+import { supabaseAdmin, ProductStatus } from '@villex/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,25 +38,40 @@ export async function GET(request: Request) {
     const q = searchParams.get('q');
     const id = searchParams.get('id');
 
-    // Build query options
-    const where: any = {
-      status: ProductStatus.PUBLISHED
-    };
+    let query = supabaseAdmin
+      .from('products')
+      .select('*, vendors(*), categories(*), product_variants(*, inventories(*))', { count: 'exact' })
+      .eq('status', 'PUBLISHED');
 
     if (id) {
-      where.id = id;
+      query = query.eq('id', id);
     }
 
     if (storeId) {
-      // Find by vendor ID or store slug
       const cleanStoreId = storeId.replace('#', '').toLowerCase();
-      where.vendor = {
-        OR: [
-          { id: storeId },
-          { storeName: { mode: 'insensitive', equals: storeId } },
-          { storeSlug: { mode: 'insensitive', equals: cleanStoreId } }
-        ]
-      };
+      
+      // Look up vendor
+      let vQuery = supabaseAdmin
+        .from('vendors')
+        .select('id')
+        .or(`store_name.eq."${storeId}",store_slug.eq."${cleanStoreId}"`);
+
+      // If storeId is a valid UUID, include id.eq
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storeId);
+      if (isUuid) {
+        vQuery = supabaseAdmin
+          .from('vendors')
+          .select('id')
+          .or(`id.eq."${storeId}",store_name.eq."${storeId}",store_slug.eq."${cleanStoreId}"`);
+      }
+
+      const { data: v, error: vError } = await vQuery.maybeSingle();
+
+      if (!vError && v) {
+        query = query.eq('vendor_id', v.id);
+      } else {
+        return NextResponse.json([]);
+      }
     }
 
     if (category) {
@@ -76,43 +90,38 @@ export async function GET(request: Request) {
       };
 
       const searchCategories = categorySlugMap[catLower] || [catLower];
+      const slugs = searchCategories.map(c => c.replace(/\s+/g, '-').toLowerCase());
 
-      where.category = {
-        OR: searchCategories.map(c => ({
-          slug: { mode: 'insensitive', equals: c.replace(/\s+/g, '-') }
-        }))
-      };
+      const { data: cats, error: catsError } = await supabaseAdmin
+        .from('categories')
+        .select('id')
+        .in('slug', slugs);
+
+      if (!catsError && cats && cats.length > 0) {
+        query = query.in('category_id', cats.map(c => c.id));
+      } else {
+        return NextResponse.json([]);
+      }
     }
 
     if (q) {
       const queryLower = q.toLowerCase();
-      where.OR = [
-        { name: { contains: queryLower, mode: 'insensitive' } },
-        { brand: { contains: queryLower, mode: 'insensitive' } },
-        { description: { contains: queryLower, mode: 'insensitive' } }
-      ];
+      query = query.or(`name.ilike.%${queryLower}%,brand.ilike.%${queryLower}%,description.ilike.%${queryLower}%`);
     }
 
-    const totalCount = await prisma.product.count({ where });
+    const { data: dbProducts, error, count } = await query
+      .range(skip, skip + limit - 1)
+      .order('created_at', { ascending: false });
 
-    const dbProducts = await prisma.product.findMany({
-      where,
-      skip,
-      take: limit,
-      include: {
-        vendor: true,
-        category: true,
-        variants: {
-          include: {
-            inventory: true
-          }
-        }
-      }
-    });
+    if (error) throw error;
 
-    const mappedProducts = dbProducts.map(p => {
-      // Find first variant as default
-      const defaultVariant = p.variants[0];
+    const mappedProducts = (dbProducts || []).map(p => {
+      const vendor = p.vendors;
+      const categoryObj = p.categories;
+      const variants = p.product_variants || [];
+      const defaultVariant = variants[0];
+      const inventory = defaultVariant?.inventories?.[0] || defaultVariant?.inventories || null;
+
       const imagesObj = (p.images as any) || { main: '', gallery: [] };
       const image = imagesObj.main || 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=500&auto=format&fit=crop&q=80';
       const gallery = imagesObj.gallery || [];
@@ -122,33 +131,36 @@ export async function GET(request: Request) {
         id: p.id,
         sku: defaultVariant?.sku || '',
         name: p.name,
-        category: p.category.name.toLowerCase(),
+        category: categoryObj ? categoryObj.name.toLowerCase() : '',
         price: Number(defaultVariant?.price || 0),
-        oldPrice: defaultVariant?.compareAtPrice ? Number(defaultVariant.compareAtPrice) : undefined,
-        discount: defaultVariant?.compareAtPrice && Number(defaultVariant.price) < Number(defaultVariant.compareAtPrice)
-          ? Math.round(((Number(defaultVariant.compareAtPrice) - Number(defaultVariant.price)) / Number(defaultVariant.compareAtPrice)) * 100)
+        oldPrice: defaultVariant?.compare_at_price ? Number(defaultVariant.compare_at_price) : undefined,
+        discount: defaultVariant?.compare_at_price && Number(defaultVariant.price) < Number(defaultVariant.compare_at_price)
+          ? Math.round(((Number(defaultVariant.compare_at_price) - Number(defaultVariant.price)) / Number(defaultVariant.compare_at_price)) * 100)
           : undefined,
-        rating: Number(p.avgRating),
-        reviews: p.reviewCount,
+        rating: Number(p.avg_rating),
+        reviews: p.review_count,
         brand: p.brand || undefined,
-        inStock: defaultVariant?.inventory ? defaultVariant.inventory.stockQty > 0 : false,
-        freeShipping: true, // Defaulting as in mock
-        expressDelivery: true, // Defaulting as in mock
+        inStock: inventory ? inventory.stock_qty > 0 : false,
+        freeShipping: true,
+        expressDelivery: true,
         description: p.description,
         image,
         images,
         gallery,
         specs: (p.specifications as any) || {},
-        storeId: p.vendor.storeSlug,
-        storeName: p.vendor.storeName,
-        options: reconstructOptions(p.variants),
-        variants: p.variants.map(v => ({
-          name: (v.attributes as any)?.option || (v.attributes as any)?.name || 'Default',
-          price: Number(v.price),
-          stock: v.inventory?.stockQty || 0,
-          sku: v.sku,
-          active: v.isActive
-        }))
+        storeId: vendor?.store_slug || '',
+        storeName: vendor?.store_name || '',
+        options: reconstructOptions(variants),
+        variants: variants.map((v: any) => {
+          const inv = v.inventories?.[0] || v.inventories || null;
+          return {
+            name: (v.attributes as any)?.option || (v.attributes as any)?.name || 'Default',
+            price: Number(v.price),
+            stock: inv?.stock_qty || 0,
+            sku: v.sku,
+            active: v.is_active
+          };
+        })
       };
     });
 
@@ -159,6 +171,8 @@ export async function GET(request: Request) {
     if (id) {
       return NextResponse.json(mappedProducts[0]);
     }
+
+    const totalCount = count || 0;
 
     return new NextResponse(JSON.stringify(mappedProducts), {
       status: 200,

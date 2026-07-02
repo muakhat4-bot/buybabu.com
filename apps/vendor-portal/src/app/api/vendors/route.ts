@@ -1,32 +1,33 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { VendorStatus } from '@prisma/client';
+import { supabaseAdmin, VendorStatus } from '@villex/supabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const vendors = await prisma.vendor.findMany({
-      include: {
-        user: true,
-        verifications: true
-      }
-    });
+    const { data: vendors, error } = await supabaseAdmin
+      .from('vendors')
+      .select('*, users(*), vendor_verifications(*)');
 
-    const mapped = vendors.map(v => {
-      const latestVerification = v.verifications[0];
+    if (error) throw error;
+
+    const mapped = (vendors || []).map(v => {
+      const verifications = v.vendor_verifications || [];
+      const latestVerification = verifications[0];
+      const user = v.users;
+
       return {
-        email: v.supportEmail,
-        storeName: v.storeName,
+        email: v.support_email,
+        storeName: v.store_name,
         storeId: v.id,
-        firstName: v.user.firstName,
-        lastName: v.user.lastName,
-        phone: v.supportPhone,
+        firstName: user ? user.first_name : '',
+        lastName: user ? user.last_name : '',
+        phone: v.support_phone,
         status: v.status,
-        joinedDate: v.createdAt.toISOString().split('T')[0],
-        verificationStatus: latestVerification?.verifiedAt ? 'APPROVED' : (v.status === 'REJECTED' ? 'REJECTED' : 'PENDING'),
-        legalName: latestVerification?.legalName || null,
-        ntnNumber: latestVerification?.taxId || null,
+        joinedDate: new Date(v.created_at).toISOString().split('T')[0],
+        verificationStatus: latestVerification?.verified_at ? 'APPROVED' : (v.status === 'REJECTED' ? 'REJECTED' : 'PENDING'),
+        legalName: latestVerification?.legal_name || null,
+        ntnNumber: latestVerification?.tax_id || null,
         wallet: v.wallet || { availableBalance: 0, pendingBalance: 0, lifetimeSales: 0, lifetimeCommission: 0, transactions: [] }
       };
     });
@@ -40,39 +41,71 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const emailLower = body.email.toLowerCase();
     
     // Find or create user
-    const user = await prisma.user.upsert({
-      where: { email: body.email.toLowerCase() },
-      update: {
-        firstName: body.firstName || body.storeName.split(' ')[0] || 'Owner',
-        lastName: body.lastName || 'Owner',
-        phone: body.phone || ''
-      },
-      create: {
-        email: body.email.toLowerCase(),
-        passwordHash: '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
-        firstName: body.firstName || body.storeName.split(' ')[0] || 'Owner',
-        lastName: body.lastName || 'Owner',
-        phone: body.phone || ''
-      }
-    });
+    const { data: existingUser, error: findUserError } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', emailLower)
+      .maybeSingle();
 
-    const role = await prisma.role.findFirst({ where: { name: 'VENDOR_ADMIN' } });
-    if (role) {
-      await prisma.userRoleLink.upsert({
-        where: {
-          userId_roleId: {
-            userId: user.id,
-            roleId: role.id
-          }
-        },
-        update: {},
-        create: {
-          userId: user.id,
-          roleId: role.id
-        }
-      });
+    if (findUserError) throw findUserError;
+
+    let user;
+    if (existingUser) {
+      const { data: updatedUser, error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({
+          first_name: body.firstName || body.storeName.split(' ')[0] || 'Owner',
+          last_name: body.lastName || 'Owner',
+          phone: body.phone || ''
+        })
+        .eq('id', existingUser.id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      user = updatedUser;
+    } else {
+      const { data: newUser, error: insertError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          email: emailLower,
+          password_hash: '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
+          first_name: body.firstName || body.storeName.split(' ')[0] || 'Owner',
+          last_name: body.lastName || 'Owner',
+          phone: body.phone || ''
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+      user = newUser;
+    }
+
+    const { data: role, error: roleError } = await supabaseAdmin
+      .from('roles')
+      .select('*')
+      .eq('name', 'VENDOR_ADMIN')
+      .maybeSingle();
+
+    if (!roleError && role) {
+      const { data: link } = await supabaseAdmin
+        .from('user_roles')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('role_id', role.id)
+        .maybeSingle();
+
+      if (!link) {
+        await supabaseAdmin
+          .from('user_roles')
+          .insert({
+            user_id: user.id,
+            role_id: role.id
+          });
+      }
     }
 
     const storeSlug = body.storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -82,35 +115,57 @@ export async function POST(request: Request) {
     if (body.status === 'SUSPENDED') vStatus = VendorStatus.SUSPENDED;
     if (body.status === 'REJECTED') vStatus = VendorStatus.REJECTED;
 
-    const vendor = await prisma.vendor.upsert({
-      where: { storeName: body.storeName },
-      update: {
-        status: vStatus,
-        supportEmail: body.email.toLowerCase(),
-        supportPhone: body.phone || '',
-        wallet: body.wallet || null
-      },
-      create: {
-        ownerId: user.id,
-        storeName: body.storeName,
-        storeSlug,
-        supportEmail: body.email.toLowerCase(),
-        supportPhone: body.phone || '',
-        status: vStatus,
-        commissionRate: 10.00,
-        wallet: body.wallet || { availableBalance: 0, pendingBalance: 0, lifetimeSales: 0, lifetimeCommission: 0, transactions: [] }
-      }
-    });
+    const { data: existingVendor, error: findVendorError } = await supabaseAdmin
+      .from('vendors')
+      .select('*')
+      .eq('store_name', body.storeName)
+      .maybeSingle();
+
+    if (findVendorError) throw findVendorError;
+
+    let vendor;
+    if (existingVendor) {
+      const { data: updatedVendor, error: vUpdateError } = await supabaseAdmin
+        .from('vendors')
+        .update({
+          status: vStatus,
+          support_email: emailLower,
+          support_phone: body.phone || '',
+          wallet: body.wallet || null
+        })
+        .eq('id', existingVendor.id)
+        .select()
+        .single();
+
+      if (vUpdateError) throw vUpdateError;
+      vendor = updatedVendor;
+    } else {
+      const { data: newVendor, error: vInsertError } = await supabaseAdmin
+        .from('vendors')
+        .insert({
+          owner_id: user.id,
+          store_name: body.storeName,
+          store_slug: storeSlug,
+          support_email: emailLower,
+          support_phone: body.phone || '',
+          status: vStatus,
+          commission_rate: 10.00,
+          wallet: body.wallet || { availableBalance: 0, pendingBalance: 0, lifetimeSales: 0, lifetimeCommission: 0, transactions: [] }
+        })
+        .select()
+        .single();
+
+      if (vInsertError) throw vInsertError;
+      vendor = newVendor;
+    }
 
     if (body.ntnNumber) {
-      await prisma.vendorVerification.create({
-        data: {
-          vendorId: vendor.id,
-          legalName: body.legalName || body.storeName,
-          taxId: body.ntnNumber,
-          documentUrls: {},
-          verifiedAt: body.verificationStatus === 'APPROVED' ? new Date() : null
-        }
+      await supabaseAdmin.from('vendor_verifications').insert({
+        vendor_id: vendor.id,
+        legal_name: body.legalName || body.storeName,
+        tax_id: body.ntnNumber,
+        document_urls: {},
+        verified_at: body.verificationStatus === 'APPROVED' ? new Date().toISOString() : null
       });
     }
 
@@ -130,10 +185,13 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'Email and amount are required' }, { status: 400 });
       }
 
-      const vendor = await prisma.vendor.findFirst({
-        where: { supportEmail: email.toLowerCase() }
-      });
+      const { data: vendor, error: findError } = await supabaseAdmin
+        .from('vendors')
+        .select('*')
+        .eq('support_email', email.toLowerCase())
+        .maybeSingle();
 
+      if (findError) throw findError;
       if (!vendor) {
         return NextResponse.json({ success: false, error: 'Vendor not found' }, { status: 404 });
       }
@@ -144,7 +202,7 @@ export async function PUT(request: Request) {
       }
 
       wallet.availableBalance -= amount;
-      const today = new Date().toISOString().slice(0, 10);
+      const today = new Date().toISOString().split('T')[0];
       const newTxId = `#VLX-PAY-${Math.floor(100000 + Math.random() * 900000)}`;
 
       const payoutMethod = body.payoutMethod || 'BANK';
@@ -170,10 +228,12 @@ export async function PUT(request: Request) {
         payoutDetails: detailsObj
       });
 
-      await prisma.vendor.update({
-        where: { id: vendor.id },
-        data: { wallet }
-      });
+      const { error: updateError } = await supabaseAdmin
+        .from('vendors')
+        .update({ wallet })
+        .eq('id', vendor.id);
+
+      if (updateError) throw updateError;
 
       return NextResponse.json({ success: true });
     }
@@ -184,8 +244,13 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'transactionId is required' }, { status: 400 });
       }
 
-      const vendors = await prisma.vendor.findMany();
-      const vendor = vendors.find((v: any) => {
+      const { data: vendors, error: findError } = await supabaseAdmin
+        .from('vendors')
+        .select('*');
+
+      if (findError) throw findError;
+
+      const vendor = (vendors || []).find((v: any) => {
         const wallet = v.wallet as any;
         return wallet?.transactions?.some((tx: any) => tx.id === txId);
       });
@@ -202,10 +267,12 @@ export async function PUT(request: Request) {
         return tx;
       });
 
-      await prisma.vendor.update({
-        where: { id: vendor.id },
-        data: { wallet }
-      });
+      const { error: updateError } = await supabaseAdmin
+        .from('vendors')
+        .update({ wallet })
+        .eq('id', vendor.id);
+
+      if (updateError) throw updateError;
 
       return NextResponse.json({ success: true });
     }
@@ -216,8 +283,13 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'transactionId is required' }, { status: 400 });
       }
 
-      const vendors = await prisma.vendor.findMany();
-      const vendor = vendors.find((v: any) => {
+      const { data: vendors, error: findError } = await supabaseAdmin
+        .from('vendors')
+        .select('*');
+
+      if (findError) throw findError;
+
+      const vendor = (vendors || []).find((v: any) => {
         const wallet = v.wallet as any;
         return wallet?.transactions?.some((tx: any) => tx.id === txId);
       });
@@ -234,10 +306,12 @@ export async function PUT(request: Request) {
         return tx;
       });
 
-      await prisma.vendor.update({
-        where: { id: vendor.id },
-        data: { wallet }
-      });
+      const { error: updateError } = await supabaseAdmin
+        .from('vendors')
+        .update({ wallet })
+        .eq('id', vendor.id);
+
+      if (updateError) throw updateError;
 
       return NextResponse.json({ success: true });
     }
@@ -248,8 +322,13 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'transactionId is required' }, { status: 400 });
       }
 
-      const vendors = await prisma.vendor.findMany();
-      const vendor = vendors.find((v: any) => {
+      const { data: vendors, error: findError } = await supabaseAdmin
+        .from('vendors')
+        .select('*');
+
+      if (findError) throw findError;
+
+      const vendor = (vendors || []).find((v: any) => {
         const wallet = v.wallet as any;
         return wallet?.transactions?.some((tx: any) => tx.id === txId);
       });
@@ -270,10 +349,12 @@ export async function PUT(request: Request) {
 
       wallet.availableBalance += refundAmount;
 
-      await prisma.vendor.update({
-        where: { id: vendor.id },
-        data: { wallet }
-      });
+      const { error: updateError } = await supabaseAdmin
+        .from('vendors')
+        .update({ wallet })
+        .eq('id', vendor.id);
+
+      if (updateError) throw updateError;
 
       return NextResponse.json({ success: true });
     }
@@ -284,10 +365,13 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, error: 'Email is required' }, { status: 400 });
     }
 
-    const vendor = await prisma.vendor.findFirst({
-      where: { supportEmail: email.toLowerCase() }
-    });
+    const { data: vendor, error: findVendorError } = await supabaseAdmin
+      .from('vendors')
+      .select('*')
+      .eq('support_email', email.toLowerCase())
+      .maybeSingle();
 
+    if (findVendorError) throw findVendorError;
     if (!vendor) {
       return NextResponse.json({ success: false, error: 'Vendor not found' }, { status: 404 });
     }
@@ -297,24 +381,26 @@ export async function PUT(request: Request) {
     if (body.status === 'SUSPENDED') vStatus = VendorStatus.SUSPENDED;
     if (body.status === 'REJECTED') vStatus = VendorStatus.REJECTED;
 
-    await prisma.vendor.update({
-      where: { id: vendor.id },
-      data: {
-        status: vStatus
-      }
-    });
+    const { error: updateVendorError } = await supabaseAdmin
+      .from('vendors')
+      .update({ status: vStatus })
+      .eq('id', vendor.id);
 
-    const verification = await prisma.vendorVerification.findFirst({
-      where: { vendorId: vendor.id }
-    });
+    if (updateVendorError) throw updateVendorError;
+
+    const { data: verification } = await supabaseAdmin
+      .from('vendor_verifications')
+      .select('*')
+      .eq('vendor_id', vendor.id)
+      .maybeSingle();
 
     if (verification) {
-      await prisma.vendorVerification.update({
-        where: { id: verification.id },
-        data: {
-          verifiedAt: body.verificationStatus === 'APPROVED' ? new Date() : null
-        }
-      });
+      await supabaseAdmin
+        .from('vendor_verifications')
+        .update({
+          verified_at: body.verificationStatus === 'APPROVED' ? new Date().toISOString() : null
+        })
+        .eq('id', verification.id);
     }
 
     return NextResponse.json({ success: true });
