@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, VendorStatus } from '@villex/supabase';
+import { randomUUID } from 'crypto';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
       const { data: newUser, error: insertError } = await supabaseAdmin
         .from('users')
         .insert({
+          id: randomUUID(),
           email: emailLower,
           password_hash: '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
           first_name: body.firstName || body.storeName.split(' ')[0] || 'Owner',
@@ -143,6 +146,7 @@ export async function POST(request: Request) {
       const { data: newVendor, error: vInsertError } = await supabaseAdmin
         .from('vendors')
         .insert({
+          id: randomUUID(),
           owner_id: user.id,
           store_name: body.storeName,
           store_slug: storeSlug,
@@ -161,6 +165,7 @@ export async function POST(request: Request) {
 
     if (body.ntnNumber) {
       await supabaseAdmin.from('vendor_verifications').insert({
+        id: randomUUID(),
         vendor_id: vendor.id,
         legal_name: body.legalName || body.storeName,
         tax_id: body.ntnNumber,
@@ -398,9 +403,42 @@ export async function PUT(request: Request) {
       await supabaseAdmin
         .from('vendor_verifications')
         .update({
-          verified_at: body.verificationStatus === 'APPROVED' ? new Date().toISOString() : null
+          verified_at: body.verificationStatus === 'APPROVED' ? new Date().toISOString() : null,
+          rejection_reason: body.status === 'REJECTED' ? (body.rejectionReason || 'Compliance verification audit failed.') : null
         })
         .eq('id', verification.id);
+    }
+
+    // Trigger notification to the Vendor owner
+    if (vStatus !== vendor.status && vendor.owner_id) {
+      try {
+        let notifTitle = '';
+        let notifMsg = '';
+
+        if (vStatus === VendorStatus.ACTIVE) {
+          notifTitle = 'Store Account Approved';
+          notifMsg = `Congratulations! Your store "${vendor.store_name}" has been approved. Your dashboard is now fully active.`;
+        } else if (vStatus === VendorStatus.REJECTED) {
+          notifTitle = 'Store Account Declined';
+          notifMsg = `Your store onboarding request was declined. Reason: "${body.rejectionReason || 'Compliance verification failed.'}"`;
+        } else if (vStatus === VendorStatus.SUSPENDED) {
+          notifTitle = 'Store Account Suspended';
+          notifMsg = `Your store "${vendor.store_name}" has been suspended by the platform administrator.`;
+        }
+
+        if (notifTitle) {
+          await supabaseAdmin.from('notifications').insert({
+            id: randomUUID(),
+            user_id: vendor.owner_id,
+            title: notifTitle,
+            message: notifMsg,
+            type: 'SECURITY',
+            is_read: false
+          });
+        }
+      } catch (notificationError) {
+        console.error('Failed to create status change notification for vendor:', notificationError);
+      }
     }
 
     return NextResponse.json({ success: true });

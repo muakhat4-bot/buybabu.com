@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@villex/supabase';
+import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
     }
 
     // Get default customer user
-    const { data: customerUser, error: userError } = await supabaseAdmin
+    let { data: customerUser, error: userError } = await supabaseAdmin
       .from('users')
       .select('*')
       .eq('email', 'customer@villex.pk')
@@ -63,13 +64,44 @@ export async function POST(request: Request) {
 
     if (userError) throw userError;
     if (!customerUser) {
-      return NextResponse.json({ error: 'Customer user not found' }, { status: 400 });
+      const { data: newUser, error: insertError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          id: randomUUID(),
+          email: 'customer@villex.pk',
+          password_hash: '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
+          first_name: 'Walk-in',
+          last_name: 'Customer',
+          phone: '0321-9876543',
+          is_active: true
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      customerUser = newUser;
+
+      const { data: role } = await supabaseAdmin
+        .from('roles')
+        .select('*')
+        .eq('name', 'CUSTOMER')
+        .maybeSingle();
+
+      if (role) {
+        await supabaseAdmin
+          .from('user_roles')
+          .insert({
+            user_id: customerUser.id,
+            role_id: role.id
+          });
+      }
     }
 
     // Create review
     const { data: review, error: createError } = await supabaseAdmin
       .from('reviews')
       .insert({
+        id: randomUUID(),
         user_id: customerUser.id,
         product_id: body.productId,
         order_id: body.orderId,

@@ -139,12 +139,37 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = React.useState<string>('overview');
   const [isMobileOpen, setIsMobileOpen] = React.useState<boolean>(false);
 
-  // Platform Audit notifications
-  const [auditLogs, setAuditLogs] = React.useState<Array<{ id: string; msg: string; time: string }>>([
-    { id: '1', msg: 'Payout request of PKR 450,000 approved for ElectroPulse Store', time: '10 mins ago' },
-    { id: '2', msg: 'System check: Escrow protection buffers holding PKR 384,900 securely', time: '1 hour ago' },
-    { id: '3', msg: 'New vendor onboarding: "Lumina Lights" store submitted verification details', time: '3 hours ago' },
-  ]);
+  const [notifications, setNotifications] = React.useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    // Suppress unused warnings for backward compatibility
+    if (auditLogs.length > 0) {}
+  }, [auditLogs]);
+
+  const fetchNotifications = React.useCallback(async () => {
+    try {
+      const response = await fetch('/api/notifications');
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch admin notifications:', err);
+    }
+  }, []);
+
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} min${minutes > 1 ? 's' : ''} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hr${hours > 1 ? 's' : ''} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
+  };
 
   // Platform Settings State
   const [defaultCommissionRate, setDefaultCommissionRate] = React.useState(10);
@@ -305,11 +330,6 @@ export default function AdminDashboard() {
     }
   }, []);
 
-  React.useEffect(() => {
-    fetchVendors();
-    fetchOrders();
-  }, [fetchVendors, fetchOrders]);
-
   const fetchProducts = React.useCallback(async () => {
     try {
       const response = await fetch('/api/products');
@@ -323,8 +343,18 @@ export default function AdminDashboard() {
   }, []);
 
   React.useEffect(() => {
+    fetchVendors();
+    fetchOrders();
     fetchProducts();
-  }, [fetchProducts]);
+    fetchNotifications();
+
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [fetchVendors, fetchOrders, fetchProducts, fetchNotifications]);
+
+
 
   // Mock Customers Database
   const [customers, setCustomers] = React.useState<Customer[]>([
@@ -413,8 +443,13 @@ export default function AdminDashboard() {
   const activeVendors = vendors.filter((v) => v.status === 'ACTIVE').length;
   
   const pendingVendorsCount = vendors.filter((v) => v.status === 'PENDING_APPROVAL').length;
+  const approvedVendorsCount = vendors.filter((v) => v.status === 'ACTIVE').length;
   const pendingPayoutsCount = payouts.filter((p) => p.status === 'PENDING').length;
   const pendingProductsCount = products.filter((p) => p.approvalStatus === 'PENDING').length;
+  const approvedProductsCount = products.filter((p) => p.approvalStatus === 'APPROVED').length;
+  const rejectedProductsCount = products.filter((p) => p.approvalStatus === 'REJECTED').length;
+  const verificationRequestsCount = vendors.filter((v) => v.status === 'PENDING_APPROVAL').length;
+  const unreadNotificationsCount = notifications.filter((n) => !n.is_read).length;
 
   // Mock Subscription Data
   const [vendorSubscriptions, setVendorSubscriptions] = React.useState<VendorSubscription[]>([]);
@@ -505,7 +540,8 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           email: store.email,
           status: 'REJECTED',
-          verificationStatus: 'REJECTED'
+          verificationStatus: 'REJECTED',
+          rejectionReason: reason
         })
       });
       
@@ -1070,6 +1106,13 @@ export default function AdminDashboard() {
                 escrowLocked={escrowLocked}
                 activeVendors={activeVendors}
                 payoutRequestsCount={pendingPayoutsCount}
+                pendingVendorsCount={pendingVendorsCount}
+                approvedVendorsCount={approvedVendorsCount}
+                pendingProductsCount={pendingProductsCount}
+                approvedProductsCount={approvedProductsCount}
+                rejectedProductsCount={rejectedProductsCount}
+                verificationRequestsCount={verificationRequestsCount}
+                unreadNotificationsCount={unreadNotificationsCount}
               />
 
               {/* Main dashboard content grids */}
@@ -1088,20 +1131,41 @@ export default function AdminDashboard() {
                           Administrative Audit Log
                         </h3>
                       </div>
-                      <div className="space-y-4">
-                        {auditLogs.map((log) => (
-                          <div key={log.id} className="flex space-x-3 text-xs leading-snug">
-                            <span className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-indigo-500" />
-                            <div>
-                              <p className="text-xs font-semibold text-foreground">
-                                {log.msg}
-                              </p>
-                              <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider mt-1 block">
-                                {log.time}
-                              </span>
+                      <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+                        {notifications.length === 0 ? (
+                          <p className="text-xs text-muted-foreground font-semibold">No admin activity logs yet.</p>
+                        ) : (
+                          notifications.slice(0, 10).map((n) => (
+                            <div key={n.id} className="flex space-x-3 text-xs leading-snug">
+                              <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.is_read ? 'bg-indigo-500/40' : 'bg-amber-500 animate-pulse'}`} />
+                              <div className="flex-grow">
+                                <p className="text-xs font-semibold text-foreground">
+                                  {n.message}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1 select-none">
+                                  <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider block">
+                                    {formatTimeAgo(n.created_at)}
+                                  </span>
+                                  {!n.is_read && (
+                                    <button
+                                      onClick={async () => {
+                                        await fetch('/api/notifications', {
+                                          method: 'PUT',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ id: n.id })
+                                        });
+                                        fetchNotifications();
+                                      }}
+                                      className="text-[9px] text-primary hover:underline font-bold uppercase tracking-wider"
+                                    >
+                                      Dismiss
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
                     </div>
                   </div>

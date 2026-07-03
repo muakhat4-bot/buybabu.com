@@ -40,8 +40,10 @@ export async function GET(request: Request) {
 
     let query = supabaseAdmin
       .from('products')
-      .select('*, vendors(*), categories(*), product_variants(*, inventories(*))', { count: 'exact' })
-      .eq('status', 'PUBLISHED');
+      .select('*, vendors!inner(*), categories(*), product_variants(*, inventories(*))', { count: 'exact' })
+      .eq('status', 'PUBLISHED')
+      .eq('approval_status', 'APPROVED')
+      .eq('vendors.status', 'ACTIVE');
 
     if (id) {
       query = query.eq('id', id);

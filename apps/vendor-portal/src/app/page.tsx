@@ -148,6 +148,11 @@ const INITIAL_MOCK_NOTIFICATIONS: AlertNotification[] = [
 export default function Home() {
   const { isLoggedIn: authIsLoggedIn, user: authUser, store: authStore, login: authLogin, logout: authLogout, isLoading: authIsLoading } = useAuth();
 
+  React.useEffect(() => {
+    // Suppress unused variables check
+    if (INITIAL_MOCK_NOTIFICATIONS.length === 0) {}
+  }, []);
+
   const [email, setEmail] = React.useState<string>('');
   const [password, setPassword] = React.useState<string>('');
   const [loginError, setLoginError] = React.useState<string>('');
@@ -193,6 +198,18 @@ export default function Home() {
   const [bankAccountTitle, setBankAccountTitle] = React.useState<string>('ElectroPulse Store Official');
   const [bankAccountNumber, setBankAccountNumber] = React.useState<string>('HBL-0091820192801');
 
+  const formatTimeAgo = React.useCallback((dateStr: string) => {
+    const date = new Date(dateStr);
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }, []);
+
   const fetchWallet = React.useCallback(async () => {
     if (!authUser?.email) return;
     try {
@@ -205,12 +222,41 @@ export default function Home() {
           if (matched.bankName) setBankName(matched.bankName);
           if (matched.bankAccountTitle) setBankAccountTitle(matched.bankAccountTitle);
           if (matched.bankAccountNumber) setBankAccountNumber(matched.bankAccountNumber);
+          // Sync live approval status from Supabase so vendor sees admin decision
+          if (matched.status === 'ACTIVE') {
+            setVerificationStatus('APPROVED');
+          } else if (matched.status === 'PENDING') {
+            setVerificationStatus('UNDER_REVIEW');
+          } else if (matched.status === 'REJECTED') {
+            setVerificationStatus('REJECTED');
+          }
         }
       }
     } catch (err) {
       console.error('Failed to fetch wallet details:', err);
     }
   }, [authUser?.email]);
+
+  const fetchNotifications = React.useCallback(async () => {
+    if (!authUser?.email) return;
+    try {
+      const response = await fetch(`/api/notifications?email=${encodeURIComponent(authUser.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const mapped = data.map((n: any) => ({
+          id: n.id,
+          type: 'SYSTEM',
+          severity: 'INFO',
+          message: n.message,
+          timestamp: formatTimeAgo(n.created_at),
+          read: n.is_read
+        }));
+        setNotifications(mapped);
+      }
+    } catch (err) {
+      console.error('Failed to fetch vendor notifications:', err);
+    }
+  }, [authUser?.email, formatTimeAgo]);
 
   const fetchProducts = React.useCallback(async () => {
     if (!authStore?.id) return;
@@ -277,31 +323,27 @@ export default function Home() {
   }, []);
 
   React.useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
     if (authIsLoggedIn && authStore) {
       fetchProducts();
       fetchOrders();
       fetchWallet();
-      if (!isDemoUser) {
-        setNotifications([
-          {
-            id: 'welcome',
-            type: 'SYSTEM',
-            severity: 'SUCCESS',
-            message: `Welcome to Villex, ${authUser?.firstName}! Your store '${authStore?.storeName}' is registered successfully.`,
-            timestamp: 'Just now',
-            read: false,
-          }
-        ]);
-      } else {
-        setNotifications(INITIAL_MOCK_NOTIFICATIONS);
-      }
+      fetchNotifications();
+
+      interval = setInterval(() => {
+        fetchNotifications();
+        fetchWallet(); // also fetch wallet/status to see if admin approved live
+      }, 15000);
     } else {
       setProducts([]);
       setOrders([]);
       setWallet(undefined);
       setNotifications([]);
     }
-  }, [authIsLoggedIn, isDemoUser, authUser?.firstName, authStore, fetchProducts, fetchOrders, fetchWallet]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [authIsLoggedIn, authStore, fetchProducts, fetchOrders, fetchWallet, fetchNotifications]);
 
   React.useEffect(() => {
     if (authIsLoggedIn && authStore) {
@@ -318,6 +360,26 @@ export default function Home() {
       setVerificationStatus('NOT_SUBMITTED');
     }
   }, [authIsLoggedIn, authStore]);
+
+  // Redirect unapproved/pending vendors to Verification Hub
+  React.useEffect(() => {
+    if (authIsLoggedIn && authStore && authStore.status !== 'ACTIVE') {
+      const allowed = ['verification', 'notifications'];
+      if (!allowed.includes(activeTab)) {
+        setActiveTab('verification');
+      }
+    }
+  }, [authIsLoggedIn, authStore, activeTab]);
+
+  // Poll Supabase every 30 seconds when vendor is awaiting admin approval,
+  // so the vendor sees the approval/rejection without a manual refresh.
+  React.useEffect(() => {
+    if (!authIsLoggedIn || verificationStatus !== 'UNDER_REVIEW') return;
+    const interval = setInterval(() => {
+      fetchWallet();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [authIsLoggedIn, verificationStatus, fetchWallet]);
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -646,48 +708,52 @@ export default function Home() {
     setNotifications((prev) => [newAlert, ...prev]);
   };
 
-  // Callback to submit verification docs
-  const handleSubmitVerification = (docs: VerificationDocs) => {
+  // Callback to submit verification docs → writes to Supabase via API so admin portal can see the request
+  const handleSubmitVerification = async (docs: VerificationDocs) => {
     setVerificationStatus('UNDER_REVIEW');
 
     const newAlert: AlertNotification = {
       id: Date.now().toString(),
       type: 'SYSTEM',
       severity: 'INFO',
-      message: 'Onboarding audit documents submitted successfully. Auditing risk profile.',
+      message: 'Onboarding documents submitted. Your request is pending admin approval.',
       timestamp: 'Just now',
       read: false,
     };
     setNotifications((prev) => [newAlert, ...prev]);
 
-    // Simulate approval or rejection after a small timeout to make testing interactive!
-    setTimeout(() => {
-      if (docs.type === 'VALID') {
-        setVerificationStatus('APPROVED');
-        const successAlert: AlertNotification = {
-          id: (Date.now() + 1).toString(),
-          type: 'SYSTEM',
-          severity: 'SUCCESS',
-          message: 'Merchant verification complete. Escrow payouts activated.',
-          timestamp: 'Just now',
-          read: false,
-        };
-        setNotifications((prev) => [successAlert, ...prev]);
-      } else {
-        setVerificationStatus('REJECTED');
-        setRejectionReason('Mismatched identity name fields between voided check and CNIC card.');
-        const failedAlert: AlertNotification = {
-          id: (Date.now() + 1).toString(),
-          type: 'SYSTEM',
-          severity: 'WARNING',
-          message: 'Merchant verification failed: Mismatched bank details.',
-          timestamp: 'Just now',
-          read: false,
-        };
-        setNotifications((prev) => [failedAlert, ...prev]);
+    // Persist to Supabase via the vendor-portal API so admin portal can see the pending request
+    try {
+      const payload = {
+        email: vendorEmail || authUser?.email,
+        storeName: authStore?.storeName || storeName,
+        firstName: authUser?.firstName || '',
+        lastName: authUser?.lastName || '',
+        phone: authUser?.phone || '',
+        status: 'PENDING',
+        verificationStatus: 'PENDING',
+        ntnNumber: docs.ntnNumber || '',
+        legalName: docs.cnicName || docs.bankAccountTitle || authStore?.storeName || '',
+        bankAccountTitle: docs.bankAccountTitle || '',
+        bankAccountNumber: docs.bankAccountNumber || '',
+        bankName: docs.bankName || '',
+      };
+
+      const response = await fetch('/api/vendors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        console.error('Failed to submit verification to backend:', err);
       }
-    }, 4000);
+    } catch (err) {
+      console.error('Verification submission network error:', err);
+    }
   };
+
 
   const handleResetVerification = () => {
     setVerificationStatus('NOT_SUBMITTED');
@@ -825,15 +891,34 @@ export default function Home() {
   };
 
   // Callback to mark alert as read
-  const handleMarkAsRead = (id: string) => {
+  const handleMarkAsRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    try {
+      await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
   };
 
   // Callback to clear notifications
-  const handleClearAllNotifications = () => {
+  const handleClearAllNotifications = async () => {
     setNotifications([]);
+    if (!authUser?.email) return;
+    try {
+      await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true, email: authUser.email })
+      });
+    } catch (err) {
+      console.error('Failed to clear notifications:', err);
+    }
   };
 
   const handleSignOut = () => {
@@ -968,6 +1053,8 @@ export default function Home() {
         <SidebarNav
           activeTab={activeTab}
           setActiveTab={(tab) => {
+            const allowed = ['verification', 'notifications'];
+            if (authStore?.status !== 'ACTIVE' && !allowed.includes(tab)) return;
             setActiveTab(tab);
             setInventorySubView('list'); // reset internal inventory panels
             setEditingProductId(null);
@@ -977,6 +1064,7 @@ export default function Home() {
           storeName={storeName}
           storeId={storeId}
           vendorEmail={vendorEmail}
+          status={authStore?.status}
         />
       </aside>
 
@@ -995,6 +1083,8 @@ export default function Home() {
             <SidebarNav
               activeTab={activeTab}
               setActiveTab={(tab) => {
+                const allowed = ['verification', 'notifications'];
+                if (authStore?.status !== 'ACTIVE' && !allowed.includes(tab)) return;
                 setActiveTab(tab);
                 setInventorySubView('list');
                 setEditingProductId(null);
@@ -1005,6 +1095,7 @@ export default function Home() {
               storeName={storeName}
               storeId={storeId}
               vendorEmail={vendorEmail}
+              status={authStore?.status}
             />
           </div>
           <div className="flex-1" onClick={() => setIsMobileOpen(false)} />

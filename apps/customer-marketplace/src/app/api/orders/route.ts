@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, OrderStatus, PaymentMethod, PaymentStatus } from '@villex/supabase';
+import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     
     // Get default customer user
-    const { data: customerUser, error: userError } = await supabaseAdmin
+    let { data: customerUser, error: userError } = await supabaseAdmin
       .from('users')
       .select('*')
       .eq('email', 'customer@villex.pk')
@@ -69,7 +70,37 @@ export async function POST(request: Request) {
 
     if (userError) throw userError;
     if (!customerUser) {
-      return NextResponse.json({ success: false, error: 'Customer user not found' }, { status: 400 });
+      const { data: newUser, error: insertError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          id: randomUUID(),
+          email: 'customer@villex.pk',
+          password_hash: '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
+          first_name: 'Walk-in',
+          last_name: 'Customer',
+          phone: '0321-9876543',
+          is_active: true
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      customerUser = newUser;
+
+      const { data: role } = await supabaseAdmin
+        .from('roles')
+        .select('*')
+        .eq('name', 'CUSTOMER')
+        .maybeSingle();
+
+      if (role) {
+        await supabaseAdmin
+          .from('user_roles')
+          .insert({
+            user_id: customerUser.id,
+            role_id: role.id
+          });
+      }
     }
 
     // Determine status
@@ -90,6 +121,7 @@ export async function POST(request: Request) {
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
       .insert({
+        id: randomUUID(),
         user_id: customerUser.id,
         order_number: orderNumber,
         subtotal: body.total,
@@ -108,6 +140,7 @@ export async function POST(request: Request) {
     const { error: paymentError } = await supabaseAdmin
       .from('payments')
       .insert({
+        id: randomUUID(),
         order_id: order.id,
         payment_method: payMethod,
         amount: body.total,
@@ -123,17 +156,26 @@ export async function POST(request: Request) {
 
     if (body.items && body.items.length > 0) {
       for (const item of body.items) {
-        // Find variant
-        let { data: variants } = await supabaseAdmin
+        // Find variant - try SKU first, then product UUID, then product name
+        let { data: variantsBySku } = await supabaseAdmin
           .from('product_variants')
-          .select('*, products(*, vendors(*))')
+          .select('*, products!inner(*, vendors(*))')
           .eq('sku', item.id);
 
-        let variant = variants?.[0];
+        let variant = variantsBySku?.[0];
+
+        if (!variant) {
+          const { data: variantsByProductId } = await supabaseAdmin
+            .from('product_variants')
+            .select('*, products!inner(*, vendors(*))')
+            .eq('product_id', item.id);
+          variant = variantsByProductId?.[0];
+        }
+
         if (!variant) {
           const { data: variantsByName } = await supabaseAdmin
             .from('product_variants')
-            .select('*, products(*, vendors(*))')
+            .select('*, products!inner(*, vendors(*))')
             .eq('products.name', item.name);
           variant = variantsByName?.[0];
         }
@@ -141,7 +183,7 @@ export async function POST(request: Request) {
         if (!variant) {
           const { data: fallbackVariants } = await supabaseAdmin
             .from('product_variants')
-            .select('*, products(*, vendors(*))')
+            .select('*, products!inner(*, vendors(*))')
             .limit(1);
           variant = fallbackVariants?.[0];
         }
@@ -153,6 +195,7 @@ export async function POST(request: Request) {
           const { error: orderItemError } = await supabaseAdmin
             .from('order_items')
             .insert({
+              id: randomUUID(),
               order_id: order.id,
               variant_id: variant.id,
               vendor_id: variant.products.vendor_id,

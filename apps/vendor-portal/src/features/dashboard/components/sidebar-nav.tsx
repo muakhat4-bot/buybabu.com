@@ -11,9 +11,13 @@ interface SidebarNavProps {
   storeName?: string;
   storeId?: string;
   vendorEmail?: string;
+  status?: string;
 }
 
-export function SidebarNav({ activeTab, setActiveTab, notificationsCount, onSignOut, storeName, storeId, vendorEmail }: SidebarNavProps) {
+export function SidebarNav({ activeTab, setActiveTab, notificationsCount, onSignOut, storeName, storeId, vendorEmail, status }: SidebarNavProps) {
+  const allowedTabs = ['verification', 'notifications'];
+  const isRestricted = status !== 'ACTIVE';
+
   const menuItems = [
     {
       id: 'overview',
@@ -129,20 +133,28 @@ export function SidebarNav({ activeTab, setActiveTab, notificationsCount, onSign
       <nav className="flex-grow space-y-1">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
+          const isLocked = isRestricted && !allowedTabs.includes(item.id);
+
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              disabled={isLocked}
+              onClick={() => !isLocked && setActiveTab(item.id)}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 group relative ${
                 isActive
                   ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                  : 'text-muted-foreground hover:bg-secondary/40 hover:text-foreground'
+                  : isLocked
+                    ? 'text-muted-foreground/45 cursor-not-allowed opacity-60'
+                    : 'text-muted-foreground hover:bg-secondary/40 hover:text-foreground'
               }`}
             >
-              <span className={`transition-transform duration-200 group-hover:scale-110 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-primary'}`}>
+              <span className={`transition-transform duration-200 group-hover:scale-110 ${isActive ? 'text-primary-foreground' : isLocked ? 'text-muted-foreground/35' : 'text-muted-foreground group-hover:text-primary'}`}>
                 {item.icon}
               </span>
               <span className="flex-grow text-left">{item.label}</span>
+              {isLocked && (
+                <span className="text-[10px]" title="Approved accounts only">🔒</span>
+              )}
               {isActive && (
                 <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground animate-ping absolute right-4"></span>
               )}

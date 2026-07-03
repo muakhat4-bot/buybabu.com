@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, VendorStatus } from '@villex/supabase';
+import { randomUUID } from 'crypto';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -7,7 +9,8 @@ export async function GET() {
   try {
     const { data: vendors, error } = await supabaseAdmin
       .from('vendors')
-      .select('*, users(*), vendor_verifications(*)');
+      .select('*, users(*), vendor_verifications(*)')
+      .eq('status', 'ACTIVE');
 
     if (error) throw error;
 
@@ -70,6 +73,7 @@ export async function POST(request: Request) {
       const { data: newUser, error: insertError } = await supabaseAdmin
         .from('users')
         .insert({
+          id: randomUUID(),
           email: emailLower,
           password_hash: '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
           first_name: body.firstName || body.storeName.split(' ')[0] || 'Owner',
@@ -109,10 +113,8 @@ export async function POST(request: Request) {
 
     const storeSlug = body.storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-    let vStatus = VendorStatus.PENDING;
-    if (body.status === 'ACTIVE') vStatus = VendorStatus.ACTIVE;
-    if (body.status === 'SUSPENDED') vStatus = VendorStatus.SUSPENDED;
-    if (body.status === 'REJECTED') vStatus = VendorStatus.REJECTED;
+    // Force vendor status to PENDING on signup
+    const vStatus = VendorStatus.PENDING;
 
     const { data: existingVendor, error: findVendorError } = await supabaseAdmin
       .from('vendors')
@@ -134,13 +136,14 @@ export async function POST(request: Request) {
         .eq('id', existingVendor.id)
         .select()
         .single();
-
+      
       if (vUpdateError) throw vUpdateError;
       vendor = updatedVendor;
     } else {
       const { data: newVendor, error: vInsertError } = await supabaseAdmin
         .from('vendors')
         .insert({
+          id: randomUUID(),
           owner_id: user.id,
           store_name: body.storeName,
           store_slug: storeSlug,
@@ -157,16 +160,41 @@ export async function POST(request: Request) {
     }
 
     if (body.ntnNumber) {
+      // Clear verified_at for security on new registrations
       await supabaseAdmin.from('vendor_verifications').insert({
+        id: randomUUID(),
         vendor_id: vendor.id,
         legal_name: body.legalName || body.storeName,
         tax_id: body.ntnNumber,
         document_urls: {},
-        verified_at: body.verificationStatus === 'APPROVED' ? new Date().toISOString() : null
+        verified_at: null
       });
     }
 
-    return NextResponse.json({ success: true, vendor: { ...body, storeId: vendor.id } });
+    // Trigger Notification to Super Admin
+    try {
+      const { data: superAdmin } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('email', 'almanar.edu.pk@gmail.com')
+        .maybeSingle();
+
+      if (superAdmin) {
+        await supabaseAdmin.from('notifications').insert({
+          id: randomUUID(),
+          user_id: superAdmin.id,
+          title: 'New Vendor Registration',
+          message: `A new store "${body.storeName}" has registered and is pending approval.`,
+          type: 'SECURITY',
+          link: '/vendors',
+          is_read: false
+        });
+      }
+    } catch (notificationError) {
+      console.error('Failed to create admin notification for vendor registration:', notificationError);
+    }
+
+    return NextResponse.json({ success: true, vendor: { ...body, storeId: vendor.id, status: 'PENDING' } });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 400 });
   }
@@ -216,6 +244,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
+    console.error("CUSTOMER VENDORS POST ERROR:", err);
     return NextResponse.json({ success: false, error: err.message }, { status: 400 });
   }
 }

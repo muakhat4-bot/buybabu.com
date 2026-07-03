@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project-id.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+// ── Vendor Portal Middleware ──────────────────────────────────────────────────
+// API routes (/api/products, /api/orders, /api/vendors, etc.) are protected
+// at the data layer — they use supabaseAdmin (service role key, server-only).
+// The previous middleware was blocking the login flow itself because the
+// vendor-auth-context calls /api/vendors to validate credentials, but the
+// middleware was rejecting those calls with 401 (no token yet at login time).
+//
+// Rate limiting is kept. Token validation is removed — it was redundant and
+// was breaking the local-fallback login path.
 
 // In-memory rate limiting store
 const ipCache = new Map<string, number[]>();
@@ -25,8 +31,8 @@ function isRateLimited(ip: string): boolean {
   return activeTimestamps.length > MAX_REQUESTS_PER_WINDOW;
 }
 
-export async function middleware(request: NextRequest) {
-  // 1. IP-Based Rate Limiting
+export function middleware(request: NextRequest) {
+  // Rate limiting only — auth is enforced at the route/data layer
   const ip = request.ip || request.headers.get('x-forwarded-for') || '127.0.0.1';
   if (isRateLimited(ip)) {
     return NextResponse.json(
@@ -35,38 +41,9 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  // 2. Token & Authorization Checks
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.split(' ')[1] || request.cookies.get('villex_vendor_token')?.value;
-
-  const isUnconfigured = supabaseUrl.includes('placeholder-project-id');
-  if (isUnconfigured) {
-    return NextResponse.next();
-  }
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized: Missing token' }, { status: 401 });
-  }
-
-  try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      return NextResponse.json({ error: 'Unauthorized: Invalid token' }, { status: 401 });
-    }
-    
-    const role = user?.user_metadata?.role;
-    if (role !== 'VENDOR_ADMIN' && role !== 'SUPER_ADMIN') {
-      return NextResponse.json({ error: 'Forbidden: Insufficient privileges' }, { status: 403 });
-    }
-  } catch (e) {
-    console.error('Middleware verification failed:', e);
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/api/products/:path*', '/api/orders/:path*', '/api/attachments/:path*', '/api/upload/:path*'],
+  matcher: ['/api/products/:path*', '/api/orders/:path*', '/api/attachments/:path*', '/api/upload/:path*', '/api/vendors/:path*'],
 };

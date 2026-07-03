@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, VendorStatus } from '@villex/supabase';
+import { randomUUID } from 'crypto';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
       const { data: newUser, error: insertError } = await supabaseAdmin
         .from('users')
         .insert({
+          id: randomUUID(),
           email: emailLower,
           password_hash: '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
           first_name: body.firstName || body.storeName.split(' ')[0] || 'Owner',
@@ -143,6 +146,7 @@ export async function POST(request: Request) {
       const { data: newVendor, error: vInsertError } = await supabaseAdmin
         .from('vendors')
         .insert({
+          id: randomUUID(),
           owner_id: user.id,
           store_name: body.storeName,
           store_slug: storeSlug,
@@ -161,12 +165,37 @@ export async function POST(request: Request) {
 
     if (body.ntnNumber) {
       await supabaseAdmin.from('vendor_verifications').insert({
+        id: randomUUID(),
         vendor_id: vendor.id,
         legal_name: body.legalName || body.storeName,
         tax_id: body.ntnNumber,
         document_urls: {},
         verified_at: body.verificationStatus === 'APPROVED' ? new Date().toISOString() : null
       });
+
+      // Trigger Super Admin notification for KYC / Verification Request
+      try {
+        const { data: superAdmin } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('email', 'almanar.edu.pk@gmail.com')
+          .maybeSingle();
+
+        if (superAdmin) {
+          const isKycUpdate = existingVendor !== null;
+          await supabaseAdmin.from('notifications').insert({
+            id: randomUUID(),
+            user_id: superAdmin.id,
+            title: isKycUpdate ? 'Vendor KYC Updated' : 'Vendor Verification Requested',
+            message: `Store "${body.storeName}" has ${isKycUpdate ? 'updated KYC details' : 'requested verification'}.`,
+            type: 'SECURITY',
+            link: '/vendors',
+            is_read: false
+          });
+        }
+      } catch (err) {
+        console.error('Failed to notify super admin about vendor KYC/verification request:', err);
+      }
     }
 
     return NextResponse.json({ success: true, vendor: { ...body, storeId: vendor.id } });

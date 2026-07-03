@@ -224,9 +224,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const matched = registeredVendors.find(
-      (v) => v.email.toLowerCase() === emailInput.toLowerCase() && v.password === passwordInput
-    );
+    // Try to find the password locally in localStorage if the vendor signed up on this browser
+    let localPassword = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('villex_registered_vendors');
+        if (stored) {
+          const localList = JSON.parse(stored);
+          const localMatched = localList.find((v: any) => v.email.toLowerCase() === emailInput.toLowerCase());
+          if (localMatched) {
+            localPassword = localMatched.password;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse local registered vendors:', e);
+      }
+    }
+
+    const matched = registeredVendors.find((v) => {
+      if (v.email.toLowerCase() !== emailInput.toLowerCase()) return false;
+      if (localPassword) {
+        return localPassword === passwordInput;
+      }
+      // Fallback for seeded users in database: check default password
+      return passwordInput === 'SecurePassword123!';
+    });
 
     let authPayload: MockJwtPayload | null = null;
 

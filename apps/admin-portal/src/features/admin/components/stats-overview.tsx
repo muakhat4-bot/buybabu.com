@@ -8,9 +8,28 @@ interface StatsOverviewProps {
   escrowLocked: number;
   activeVendors: number;
   payoutRequestsCount: number;
+  pendingVendorsCount: number;
+  approvedVendorsCount: number;
+  pendingProductsCount: number;
+  approvedProductsCount: number;
+  rejectedProductsCount: number;
+  verificationRequestsCount: number;
+  unreadNotificationsCount: number;
 }
 
-export function StatsOverview({ totalGtv, escrowLocked, activeVendors, payoutRequestsCount }: StatsOverviewProps) {
+export function StatsOverview({
+  totalGtv,
+  escrowLocked,
+  activeVendors,
+  payoutRequestsCount,
+  pendingVendorsCount,
+  approvedVendorsCount,
+  pendingProductsCount,
+  approvedProductsCount,
+  rejectedProductsCount,
+  verificationRequestsCount,
+  unreadNotificationsCount
+}: StatsOverviewProps) {
   const stats = [
     {
       title: 'Gross Transaction Value (GTV)',
@@ -264,6 +283,106 @@ export function StatsOverview({ totalGtv, escrowLocked, activeVendors, payoutReq
           </div>
         </CardContent>
       </Card>
+
+      {/* Approvals and Queue KPIs row */}
+      <div>
+        <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2 select-none">
+          <span>Administrative Approvals & Notifications Queue</span>
+          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+        </h3>
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 select-none">
+          <Card className="border-border bg-card/40">
+            <CardContent className="p-4 flex flex-col justify-between h-full min-h-[90px]">
+              <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">
+                Pending Vendors
+              </span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className={`text-xl font-black ${pendingVendorsCount > 0 ? 'text-amber-500 animate-pulse' : 'text-foreground'}`}>
+                  {pendingVendorsCount}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card/40">
+            <CardContent className="p-4 flex flex-col justify-between h-full min-h-[90px]">
+              <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">
+                Active Vendors
+              </span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className="text-xl font-black text-emerald-500">
+                  {approvedVendorsCount}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card/40">
+            <CardContent className="p-4 flex flex-col justify-between h-full min-h-[90px]">
+              <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">
+                Pending Products
+              </span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className={`text-xl font-black ${pendingProductsCount > 0 ? 'text-amber-500 animate-pulse' : 'text-foreground'}`}>
+                  {pendingProductsCount}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card/40">
+            <CardContent className="p-4 flex flex-col justify-between h-full min-h-[90px]">
+              <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">
+                Approved Products
+              </span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className="text-xl font-black text-emerald-500">
+                  {approvedProductsCount}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card/40">
+            <CardContent className="p-4 flex flex-col justify-between h-full min-h-[90px]">
+              <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">
+                Declined Products
+              </span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className="text-xl font-black text-rose-500">
+                  {rejectedProductsCount}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card/40">
+            <CardContent className="p-4 flex flex-col justify-between h-full min-h-[90px]">
+              <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">
+                Verification Regs
+              </span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className={`text-xl font-black ${verificationRequestsCount > 0 ? 'text-indigo-400' : 'text-foreground'}`}>
+                  {verificationRequestsCount}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-card/40">
+            <CardContent className="p-4 flex flex-col justify-between h-full min-h-[90px]">
+              <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">
+                Unread Alerts
+              </span>
+              <div className="flex items-baseline gap-1.5 mt-2">
+                <span className={`text-xl font-black ${unreadNotificationsCount > 0 ? 'text-red-400 animate-pulse' : 'text-foreground'}`}>
+                  {unreadNotificationsCount}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

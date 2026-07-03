@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, ProductStatus } from '@villex/supabase';
+import { supabaseAdmin } from '@villex/supabase';
+import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -206,6 +207,11 @@ export async function POST(request: Request) {
       }
     }
 
+    // Force active vendor validation
+    if (vendor.status !== 'ACTIVE') {
+      return NextResponse.json({ error: 'Vendor account is not active. Product operations are disabled.' }, { status: 403 });
+    }
+
     // Find or create Category
     const catName = (body.category || 'other').trim().toLowerCase();
     const catSlug = catName.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -233,8 +239,7 @@ export async function POST(request: Request) {
 
     const slug = `${body.id || `p-${Date.now()}`}-${body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}`;
 
-    const approvalStatus = body.approvalStatus || 'PENDING';
-    const rejectionReason = body.rejectionReason || null;
+
 
     const images = body.images || [];
     const imageMain = images[0] || 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=500&auto=format&fit=crop&q=80';
@@ -258,6 +263,14 @@ export async function POST(request: Request) {
       }
     }
 
+    const isResubmission = product ? (product.approval_status === 'REJECTED') : false;
+    const notifTitle = product 
+      ? (isResubmission ? 'Product Resubmitted' : 'Product Updated')
+      : 'New Product Submitted';
+    const notifMsg = product
+      ? `Product "${body.name}" has been ${isResubmission ? 'resubmitted' : 'updated'} by store "${vendor.store_name}" and is pending review.`
+      : `A new product "${body.name}" has been submitted by store "${vendor.store_name}" and is pending review.`;
+
     if (product) {
       // Update
       const { data: updatedProduct, error: pUpdateError } = await supabaseAdmin
@@ -269,8 +282,8 @@ export async function POST(request: Request) {
           brand: body.brand || null,
           images: { main: imageMain, gallery: images },
           specifications: body.specs || {},
-          approval_status: approvalStatus,
-          rejection_reason: rejectionReason
+          approval_status: 'PENDING',
+          rejection_reason: null
         })
         .eq('id', product.id)
         .select()
@@ -292,12 +305,14 @@ export async function POST(request: Request) {
         status: 'PUBLISHED',
         avg_rating: body.rating || 5.0,
         review_count: body.reviews || 0,
-        approval_status: approvalStatus,
-        rejection_reason: rejectionReason
+        approval_status: 'PENDING',
+        rejection_reason: null
       };
 
       if (body.id && isValidUuid(body.id)) {
         insertData.id = body.id;
+      } else {
+        insertData.id = randomUUID();
       }
 
       const { data: newProduct, error: pInsertError } = await supabaseAdmin
@@ -308,6 +323,29 @@ export async function POST(request: Request) {
 
       if (pInsertError) throw pInsertError;
       product = newProduct;
+    }
+
+    // Trigger Super Admin notification
+    try {
+      const { data: superAdmin } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('email', 'almanar.edu.pk@gmail.com')
+        .maybeSingle();
+
+      if (superAdmin) {
+        await supabaseAdmin.from('notifications').insert({
+          id: randomUUID(),
+          user_id: superAdmin.id,
+          title: notifTitle,
+          message: notifMsg,
+          type: 'SECURITY',
+          link: '/products',
+          is_read: false
+        });
+      }
+    } catch (notificationError) {
+      console.error('Failed to notify super admin about product review:', notificationError);
     }
 
     // Delete existing variants
@@ -321,6 +359,7 @@ export async function POST(request: Request) {
         const { data: variant, error: vError } = await supabaseAdmin
           .from('product_variants')
           .insert({
+            id: randomUUID(),
             product_id: product.id,
             sku: v.sku || `SKU-${Date.now()}-${Math.random()}`,
             price: Number(v.price || body.price || 0),
@@ -333,13 +372,16 @@ export async function POST(request: Request) {
 
         if (vError) throw vError;
 
-        await supabaseAdmin
+        const { error: invError } = await supabaseAdmin
           .from('inventories')
           .insert({
+            id: randomUUID(),
             variant_id: variant.id,
             stock_qty: Number(v.stock || 0),
             low_stock_threshold: 2
           });
+
+        if (invError) throw invError;
       }
     } else {
       // Create a default variant
@@ -347,6 +389,7 @@ export async function POST(request: Request) {
       const { data: variant, error: vError } = await supabaseAdmin
         .from('product_variants')
         .insert({
+          id: randomUUID(),
           product_id: product.id,
           sku: defaultSku,
           price: Number(body.price || 0),
@@ -359,13 +402,16 @@ export async function POST(request: Request) {
 
       if (vError) throw vError;
 
-      await supabaseAdmin
+      const { error: invError } = await supabaseAdmin
         .from('inventories')
         .insert({
+          id: randomUUID(),
           variant_id: variant.id,
           stock_qty: Number(body.stock || 0),
           low_stock_threshold: 2
         });
+
+      if (invError) throw invError;
     }
 
     return NextResponse.json({ success: true, product: { ...body, id: product.id } });
@@ -401,6 +447,17 @@ export async function DELETE(request: Request) {
 
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    // Force active vendor validation for delete
+    const { data: vendor } = await supabaseAdmin
+      .from('vendors')
+      .select('*')
+      .eq('id', product.vendor_id)
+      .maybeSingle();
+
+    if (!vendor || vendor.status !== 'ACTIVE') {
+      return NextResponse.json({ error: 'Vendor account is not active. Product operations are disabled.' }, { status: 403 });
     }
 
     // Delete variants first

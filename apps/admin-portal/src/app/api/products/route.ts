@@ -66,6 +66,42 @@ export async function PUT(request: Request) {
 
     if (updateError) throw updateError;
 
+    // Trigger notification to the Vendor owner
+    try {
+      const { data: vendor } = await supabaseAdmin
+        .from('vendors')
+        .select('*')
+        .eq('id', product.vendor_id)
+        .maybeSingle();
+
+      if (vendor && vendor.owner_id) {
+        let notifTitle = '';
+        let notifMsg = '';
+
+        if (body.approvalStatus === 'APPROVED') {
+          notifTitle = 'Product Approved';
+          notifMsg = `Your product "${product.name}" has been approved and is now live on the marketplace.`;
+        } else if (body.approvalStatus === 'REJECTED') {
+          notifTitle = 'Product Declined';
+          notifMsg = `Your product "${product.name}" was declined. Reason: "${body.rejectionReason || 'Compliance review failed.'}"`;
+        }
+
+        if (notifTitle) {
+          const { randomUUID } = require('crypto');
+          await supabaseAdmin.from('notifications').insert({
+            id: randomUUID(),
+            user_id: vendor.owner_id,
+            title: notifTitle,
+            message: notifMsg,
+            type: 'SECURITY',
+            is_read: false
+          });
+        }
+      }
+    } catch (notificationError) {
+      console.error('Failed to create product approval notification:', notificationError);
+    }
+
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 400 });
