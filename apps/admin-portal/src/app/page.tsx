@@ -86,7 +86,56 @@ const INITIAL_MOCK_ORDERS: GlobalOrder[] = [
   },
 ];
 
+// ─── Admin Credentials (hardcoded) ───────────────────────────────────────────
+const ADMIN_EMAIL = 'Almanar.edu.pk@gmail.com';
+const ADMIN_PASSWORD = 'Pass@2025/-WebSite';
+const ADMIN_NAME = 'Abu Saad';
+
 export default function AdminDashboard() {
+  // ── Auth state ─────────────────────────────────────────────────────────────
+  // IMPORTANT: Always initialise to `false` so SSR and client render the same
+  // HTML (login screen). After mount, useEffect reads sessionStorage and
+  // switches to `true` if a valid session exists. This eliminates the
+  // React hydration mismatch caused by typeof-window guards in useState.
+  const [mounted, setMounted] = React.useState(false);
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const [loginEmail, setLoginEmail] = React.useState('');
+  const [loginPassword, setLoginPassword] = React.useState('');
+  const [loginError, setLoginError] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [isLoggingIn, setIsLoggingIn] = React.useState(false);
+
+  // Sync session from sessionStorage after first client render
+  React.useEffect(() => {
+    setMounted(true);
+    if (sessionStorage.getItem('villex_admin_session') === '1') {
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    await new Promise((r) => setTimeout(r, 600));
+    if (loginEmail.trim() === ADMIN_EMAIL && loginPassword === ADMIN_PASSWORD) {
+      sessionStorage.setItem('villex_admin_session', '1');
+      setIsLoggedIn(true);
+    } else {
+      setLoginError('Invalid email or password. Please try again.');
+    }
+    setIsLoggingIn(false);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('villex_admin_session');
+    setIsLoggedIn(false);
+    setLoginEmail('');
+    setLoginPassword('');
+    setLoginError('');
+  };
+
+  // ── Dashboard state (all hooks must be declared unconditionally) ────────────
   const [activeTab, setActiveTab] = React.useState<string>('overview');
   const [isMobileOpen, setIsMobileOpen] = React.useState<boolean>(false);
 
@@ -762,8 +811,153 @@ export default function AdminDashboard() {
     setAuditLogs((prev) => [newLog, ...prev]);
   };
 
+  // Before mount: render a minimal shell that matches the SSR output exactly.
+  // This prevents a hydration mismatch because both server and client render
+  // the same blank loader until useEffect runs and the session is verified.
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <span className="w-2 h-2 bg-primary rounded-full animate-ping" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen bg-background text-foreground overflow-hidden font-sans">
+    <>
+      {/* ── Login Screen ──────────────────────────────────────────────────── */}
+      {!isLoggedIn && (
+        <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+          {/* Ambient background glows */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-[-10%] left-[-5%] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px]" />
+            <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] bg-violet-600/10 rounded-full blur-[120px]" />
+          </div>
+          <div className="relative w-full max-w-[420px]">
+            {/* Logo */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="flex items-center gap-3 mb-3">
+                <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10">
+                  <path d="M6 6h5.5l5 14h-5.5l-5-14z" fill="currentColor" className="text-primary" />
+                  <path d="M26 6h-5.5l-5 14h5.5l5-14z" fill="#F59E0B" />
+                  <circle cx="16" cy="25" r="3.5" fill="#F59E0B" />
+                </svg>
+                <span className="font-black text-2xl text-foreground uppercase tracking-widest">
+                  Villex<span className="text-[#F59E0B]">.</span>
+                </span>
+              </div>
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Super Admin Portal</p>
+            </div>
+            {/* Card */}
+            <div className="bg-card/60 backdrop-blur-xl border border-border/60 rounded-2xl p-8 shadow-2xl shadow-black/20">
+              <div className="mb-6">
+                <h1 className="text-xl font-black text-foreground">Sign In</h1>
+                <p className="text-xs text-muted-foreground mt-1">Access the administrative control panel</p>
+              </div>
+              <form onSubmit={handleLogin} className="space-y-4">
+                {/* Email */}
+                <div className="space-y-1.5">
+                  <label htmlFor="admin-email" className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">Email Address</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                      </svg>
+                    </span>
+                    <input
+                      id="admin-email"
+                      type="email"
+                      required
+                      autoComplete="username"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      className="w-full h-11 bg-secondary/40 border border-input rounded-xl pl-10 pr-4 text-sm font-semibold placeholder-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all duration-150"
+                    />
+                  </div>
+                </div>
+                {/* Password */}
+                <div className="space-y-1.5">
+                  <label htmlFor="admin-password" className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">Password</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </span>
+                    <input
+                      id="admin-password"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="w-full h-11 bg-secondary/40 border border-input rounded-xl pl-10 pr-12 text-sm font-semibold placeholder-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all duration-150"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                {/* Error */}
+                {loginError && (
+                  <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold rounded-xl px-4 py-3">
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {loginError}
+                  </div>
+                )}
+                {/* Submit */}
+                <button
+                  id="admin-login-btn"
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-black text-sm rounded-xl transition-all duration-150 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-primary/25 mt-2"
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Authenticating...
+                    </>
+                  ) : (
+                    'Sign In to Dashboard'
+                  )}
+                </button>
+              </form>
+              <div className="mt-6 pt-5 border-t border-border/40 flex items-center justify-center gap-2">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Secure Admin Access</span>
+              </div>
+            </div>
+            <p className="text-center text-[10px] text-muted-foreground/50 mt-6">
+              © 2026 Villex Marketplace. All rights reserved.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dashboard ─────────────────────────────────────────────────────── */}
+      {isLoggedIn && (
+        <div className="flex min-h-screen bg-background text-foreground overflow-hidden font-sans">
+
       {/* Sidebar - desktop sticky */}
       <aside className="w-[260px] border-r border-border bg-card/25 px-4 py-6 shrink-0 hidden md:block">
         <Sidebar
@@ -838,17 +1032,30 @@ export default function AdminDashboard() {
               <span>Escrow Protected: PKR {escrowLocked.toLocaleString()}</span>
             </div>
 
-            {/* Profile Info */}
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center font-bold text-sm text-primary-foreground shadow-md shadow-primary/10 select-none">
-                SA
+            {/* Profile Info + Logout */}
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-violet-500 flex items-center justify-center font-bold text-sm text-primary-foreground shadow-md shadow-primary/10 select-none">
+                  AS
+                </div>
+                <div className="hidden xl:block select-none">
+                  <p className="text-xs font-black text-foreground">{ADMIN_NAME}</p>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
+                    Super Admin
+                  </p>
+                </div>
               </div>
-              <div className="hidden xl:block select-none">
-                <p className="text-xs font-black text-foreground">Super Admin</p>
-                <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">
-                  Root Controller
-                </p>
-              </div>
+              <button
+                id="admin-logout-btn"
+                onClick={handleLogout}
+                title="Sign Out"
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-500/50 transition-all duration-150 text-[11px] font-black uppercase tracking-wider"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline">Logout</span>
+              </button>
             </div>
           </div>
         </header>
@@ -973,6 +1180,8 @@ export default function AdminDashboard() {
           )}
         </main>
       </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }
