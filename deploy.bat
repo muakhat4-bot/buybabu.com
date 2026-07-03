@@ -89,7 +89,7 @@ echo.
 echo [7/10] Committing changes...
 git commit -m "!commit_msg!"
 if %ERRORLEVEL% neq 0 (
-    echo [WARNING] git commit did not create a new commit (possibly no changes to commit).
+    echo [WARNING] git commit did not create a new commit - possibly no changes to commit.
 )
 echo.
 
@@ -118,7 +118,7 @@ echo ===================================================
 echo.
 
 :: Check if the script was run by double-clicking (explorer wraps batch invocation in nested quotes)
-echo %cmdcmdline% | findstr /i /c:"\"\"" >nul
+echo !cmdcmdline! | findstr /i /c:"\"\"" >nul
 if %ERRORLEVEL% equ 0 (
     echo Press any key to close this window...
     pause >nul
@@ -131,7 +131,7 @@ echo ===================================================
 echo  [FAILED] Deployment stopped due to an error.
 echo ===================================================
 echo.
-echo %cmdcmdline% | findstr /i /c:"\"\"" >nul
+echo !cmdcmdline! | findstr /i /c:"\"\"" >nul
 if %ERRORLEVEL% equ 0 (
     echo Press any key to close this window...
     pause >nul
