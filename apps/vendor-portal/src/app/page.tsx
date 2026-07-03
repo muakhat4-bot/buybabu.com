@@ -16,6 +16,24 @@ import { useAuth } from '../context/vendor-auth-context';
 import { WalletPanel, WalletData } from '../features/dashboard/components/wallet-panel';
 import { MediaPanel } from '../features/dashboard/components/media-panel';
 
+function getMarketplaceUrl(): string {
+  if (typeof window === 'undefined') return 'http://localhost:3000';
+  if (process.env.NEXT_PUBLIC_MARKETPLACE_URL) {
+    return process.env.NEXT_PUBLIC_MARKETPLACE_URL;
+  }
+  const origin = window.location.origin;
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    return 'http://localhost:3000';
+  }
+  if (origin.includes('-vendor-portal')) {
+    return origin.replace('-vendor-portal', '-customer-marketplace');
+  }
+  if (origin.includes('vendor.')) {
+    return origin.replace('vendor.', '');
+  }
+  return origin;
+}
+
 interface RegisteredVendor {
   email: string;
   password?: string;
@@ -1034,7 +1052,7 @@ export default function Home() {
             <p className="text-xs text-muted-foreground">
               New to Villex?{' '}
               <a
-                href="http://localhost:3000/vendor-signup"
+                href={`${getMarketplaceUrl()}/vendor-signup`}
                 className="font-bold text-primary hover:underline"
               >
                 Register your store

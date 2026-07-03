@@ -32,6 +32,7 @@ interface VendorManagementProps {
   onRejectVendor: (id: string, reason: string) => void;
   onToggleVendorStatus: (id: string) => void;
   onOverrideCommission: (id: string, rate: number) => void;
+  onDeleteVendor: (id: string) => void;
 }
 
 interface RiskFactor {
@@ -115,6 +116,7 @@ export function VendorManagement({
   onRejectVendor,
   onToggleVendorStatus,
   onOverrideCommission,
+  onDeleteVendor,
 }: VendorManagementProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<'ALL' | 'PENDING' | 'ACTIVE' | 'SUSPENDED'>('ALL');
@@ -326,6 +328,19 @@ export function VendorManagement({
                           Approve
                         </Button>
                       )}
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete store "${vendor.storeName}" and all associated products/users?`)) {
+                            onDeleteVendor(vendor.id);
+                          }
+                        }}
+                        className="text-[9px] font-black uppercase tracking-wider h-7 px-2.5 rounded-lg border border-destructive/20 hover:bg-destructive/10 text-destructive font-bold"
+                      >
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -490,16 +505,16 @@ export function VendorManagement({
                               onApproveVendor(selectedVendor.id);
                               setSelectedVendor(null);
                             }}
-                            className="flex-1 text-[10px] font-black uppercase tracking-wider h-10 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            className="flex-grow text-[10px] font-black uppercase tracking-wider h-10 bg-emerald-600 hover:bg-emerald-700 text-white"
                           >
-                            Approve Registration
+                            Approve
                           </Button>
                           <Button
                             variant="outline"
                             onClick={() => setRejectingVendorId(selectedVendor.id)}
-                            className="flex-1 text-[10px] font-black uppercase tracking-wider h-10 text-destructive border-destructive/20 hover:bg-destructive/10"
+                            className="flex-grow text-[10px] font-black uppercase tracking-wider h-10 text-destructive border-destructive/20 hover:bg-destructive/10"
                           >
-                            Decline Registration
+                            Decline
                           </Button>
                         </>
                       ) : (
@@ -509,15 +524,28 @@ export function VendorManagement({
                             onToggleVendorStatus(selectedVendor.id);
                             setSelectedVendor(prev => prev ? { ...prev, status: prev.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED' } : null);
                           }}
-                          className={`w-full text-[10px] font-black uppercase tracking-wider h-10 ${
+                          className={`flex-grow text-[10px] font-black uppercase tracking-wider h-10 ${
                             selectedVendor.status === 'SUSPENDED'
                               ? 'text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/10'
                               : 'text-destructive border-destructive/20 hover:bg-destructive/10'
                           }`}
                         >
-                          {selectedVendor.status === 'SUSPENDED' ? 'Reactivate Store Account' : 'Suspend Store Account'}
+                          {selectedVendor.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'}
                         </Button>
                       )}
+
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete store "${selectedVendor.storeName}" and all associated products/users?`)) {
+                            onDeleteVendor(selectedVendor.id);
+                            setSelectedVendor(null);
+                          }
+                        }}
+                        className="text-[10px] font-black uppercase tracking-wider h-10 bg-destructive hover:bg-destructive/90 text-white border-transparent px-4 rounded-xl font-bold"
+                      >
+                        Delete Store
+                      </Button>
                     </div>
                   </div>
                 </div>

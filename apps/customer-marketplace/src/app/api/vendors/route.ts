@@ -61,7 +61,8 @@ export async function POST(request: Request) {
         .update({
           first_name: body.firstName || body.storeName.split(' ')[0] || 'Owner',
           last_name: body.lastName || 'Owner',
-          phone: body.phone || ''
+          phone: body.phone || '',
+          password_hash: body.password ? ('plain:' + body.password) : undefined
         })
         .eq('id', existingUser.id)
         .select()
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
         .insert({
           id: randomUUID(),
           email: emailLower,
-          password_hash: '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
+          password_hash: body.password ? ('plain:' + body.password) : '$2b$10$devSaltPlaceholderForHashedPasswords1234567890',
           first_name: body.firstName || body.storeName.split(' ')[0] || 'Owner',
           last_name: body.lastName || 'Owner',
           phone: body.phone || ''

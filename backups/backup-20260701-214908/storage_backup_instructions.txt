@@ -1,9 +1,0 @@
-Storage Backup Log - 20260701-214908
-======================================================
-The file storage is hosted on Supabase Storage.
-To perform a complete file backup, use the Supabase CLI:
-supabase storage pull product-images ./storage-backup/product-images
-supabase storage pull product-gallery ./storage-backup/product-gallery
-supabase storage pull vendor-logos ./storage-backup/vendor-logos
-supabase storage pull vendor-banners ./storage-backup/vendor-banners
-supabase storage pull customer-avatars ./storage-backup/customer-avatars

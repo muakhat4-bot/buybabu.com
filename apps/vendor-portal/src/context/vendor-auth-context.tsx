@@ -80,24 +80,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const jwtToken = session.access_token;
           setToken(jwtToken);
           
-          // Map user profile from session metadata
-          const meta = session.user.user_metadata;
-          const storeName = meta.storeName || 'ElectroPulse Store';
-          
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            firstName: meta.firstName || 'Owner',
-            lastName: meta.lastName || 'Owner',
-            role: meta.role || 'VENDOR_ADMIN',
-            isActive: true
-          });
-
-          setStore({
-            id: meta.storeId || '#VLX-MER-089',
-            storeName,
-            joinedDate: new Date(session.user.created_at).toLocaleDateString()
-          });
+          try {
+            await fetchProfileAndStore(jwtToken);
+          } catch (e) {
+            console.error('Failed to fetch profile/store from DB, falling back to JWT metadata:', e);
+            const meta = session.user.user_metadata;
+            setUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              firstName: meta.firstName || 'Owner',
+              lastName: meta.lastName || 'Owner',
+              role: meta.role || 'VENDOR_ADMIN',
+              isActive: true
+            });
+            setStore({
+              id: meta.storeId || '#VLX-MER-089',
+              storeName: meta.storeName || 'ElectroPulse Store',
+              joinedDate: new Date(session.user.created_at).toLocaleDateString(),
+              status: 'PENDING'
+            });
+          }
 
           if (typeof window !== 'undefined') {
             localStorage.setItem('villex_vendor_token', jwtToken);
@@ -124,26 +126,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
-        setToken(session.access_token);
-        const meta = session.user.user_metadata;
-        const storeName = meta.storeName || 'ElectroPulse Store';
-
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          firstName: meta.firstName || 'Owner',
-          lastName: meta.lastName || 'Owner',
-          role: meta.role || 'VENDOR_ADMIN',
-          isActive: true
-        });
-
-        setStore({
-          id: meta.storeId || '#VLX-MER-089',
-          storeName,
-          joinedDate: new Date(session.user.created_at).toLocaleDateString()
-        });
+        const jwtToken = session.access_token;
+        setToken(jwtToken);
+        
+        try {
+          await fetchProfileAndStore(jwtToken);
+        } catch (e) {
+          console.error('onAuthStateChange fetch error:', e);
+          const meta = session.user.user_metadata;
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            firstName: meta.firstName || 'Owner',
+            lastName: meta.lastName || 'Owner',
+            role: meta.role || 'VENDOR_ADMIN',
+            isActive: true
+          });
+          setStore({
+            id: meta.storeId || '#VLX-MER-089',
+            storeName: meta.storeName || 'ElectroPulse Store',
+            joinedDate: new Date(session.user.created_at).toLocaleDateString(),
+            status: 'PENDING'
+          });
+        }
 
         if (typeof window !== 'undefined') {
           localStorage.setItem('villex_vendor_token', session.access_token);
@@ -175,24 +182,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (!error && data.session) {
-          setToken(data.session.access_token);
-          const meta = data.user.user_metadata;
-          const storeName = meta.storeName || 'ElectroPulse Store';
-
-          setUser({
-            id: data.user.id,
-            email: data.user.email || '',
-            firstName: meta.firstName || 'Owner',
-            lastName: meta.lastName || 'Owner',
-            role: meta.role || 'VENDOR_ADMIN',
-            isActive: true
-          });
-
-          setStore({
-            id: meta.storeId || '#VLX-MER-089',
-            storeName,
-            joinedDate: new Date(data.user.created_at).toLocaleDateString()
-          });
+          const jwtToken = data.session.access_token;
+          setToken(jwtToken);
+          
+          try {
+            await fetchProfileAndStore(jwtToken);
+          } catch (e) {
+            console.error('login fetch error:', e);
+            const meta = data.user.user_metadata;
+            setUser({
+              id: data.user.id,
+              email: data.user.email || '',
+              firstName: meta.firstName || 'Owner',
+              lastName: meta.lastName || 'Owner',
+              role: meta.role || 'VENDOR_ADMIN',
+              isActive: true
+            });
+            setStore({
+              id: meta.storeId || '#VLX-MER-089',
+              storeName: meta.storeName || 'ElectroPulse Store',
+              joinedDate: new Date(data.user.created_at).toLocaleDateString(),
+              status: 'PENDING'
+            });
+          }
 
           if (typeof window !== 'undefined') {
             localStorage.setItem('villex_vendor_token', data.session.access_token);

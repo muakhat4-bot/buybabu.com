@@ -13,7 +13,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
-    "clean": "turbo run clean && npx rimraf node_modules **/node_modules .turbo"
+    "clean": "turbo run clean && npx rimraf node_modules **/node_modules .turbo",
+    "deploy": "deploy.bat"
   },
   "devDependencies": {
     "prettier": "^3.4.2",

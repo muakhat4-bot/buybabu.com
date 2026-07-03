@@ -67,7 +67,8 @@ export const vendorApi = {
   // GET /auth/me
   getMe: async (token: string): Promise<MockVendorProfile> => {
     const payload = decodeMockJwt(token);
-    if (!payload || !payload.userId) {
+    const userId = payload?.userId || (payload as any)?.sub;
+    if (!payload || !userId) {
       throw new Error('Unauthorized');
     }
 
@@ -84,7 +85,7 @@ export const vendorApi = {
       }
 
       return {
-        id: payload.userId,
+        id: userId,
         email: matched.email,
         firstName: matched.firstName,
         lastName: matched.lastName,
@@ -104,7 +105,7 @@ export const vendorApi = {
       }
 
       return {
-        id: payload.userId,
+        id: userId,
         email: matched.email,
         firstName: matched.firstName,
         lastName: matched.lastName,
@@ -117,7 +118,8 @@ export const vendorApi = {
   // GET /vendor/profile & GET /vendor/store
   getStore: async (token: string): Promise<MockStoreInfo> => {
     const payload = decodeMockJwt(token);
-    if (!payload || !payload.userId) {
+    const userId = payload?.userId || (payload as any)?.sub;
+    if (!payload || !userId) {
       throw new Error('Unauthorized');
     }
 
@@ -135,7 +137,7 @@ export const vendorApi = {
 
       return {
         id: matched.storeId || `#VLX-MER-${Math.floor(100 + Math.random() * 900)}`,
-        ownerId: payload.userId,
+        ownerId: userId,
         storeName: matched.storeName,
         storeSlug: matched.storeName.toLowerCase().replace(/\s+/g, '-'),
         description: matched.storeDescription,
@@ -157,7 +159,7 @@ export const vendorApi = {
 
       return {
         id: matched.storeId || `#VLX-MER-${Math.floor(100 + Math.random() * 900)}`,
-        ownerId: payload.userId,
+        ownerId: userId,
         storeName: matched.storeName,
         storeSlug: matched.storeName.toLowerCase().replace(/\s+/g, '-'),
         description: matched.storeDescription,

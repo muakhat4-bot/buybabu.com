@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from '@villex/ui';
 import { Navbar } from '@/components/layout/navbar';
 
+// Vendor Portal Redirect Target URL
+const vendorPortalUrl = process.env.NEXT_PUBLIC_VENDOR_PORTAL_URL || 'http://localhost:3001';
+
 export default function VendorSignupPage() {
   const [step, setStep] = React.useState<1 | 2 | 3 | 4>(1);
 
@@ -506,7 +509,7 @@ export default function VendorSignupPage() {
 
             <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
               <a 
-                href={`http://localhost:3001?signup_success=true&email=${encodeURIComponent(formData.email)}&password=${encodeURIComponent(formData.password)}&storeName=${encodeURIComponent(formData.storeName)}&firstName=${encodeURIComponent(formData.firstName)}&lastName=${encodeURIComponent(formData.lastName)}`} 
+                href={`${vendorPortalUrl}?signup_success=true&email=${encodeURIComponent(formData.email)}&password=${encodeURIComponent(formData.password)}&storeName=${encodeURIComponent(formData.storeName)}&firstName=${encodeURIComponent(formData.firstName)}&lastName=${encodeURIComponent(formData.lastName)}`} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-xl text-sm font-bold uppercase tracking-wider transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98] h-11 px-8 bg-primary text-primary-foreground hover:bg-primary/95 shadow-md shadow-primary/10 hover:shadow-lg hover:shadow-primary/20 w-full sm:w-auto text-center"

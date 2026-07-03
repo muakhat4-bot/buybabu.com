@@ -592,6 +592,30 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeleteVendor = async (id: string) => {
+    try {
+      const response = await fetch(`/api/vendors?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setVendors((prev) => prev.filter((v) => v.id !== id));
+        const newLog = {
+          id: Date.now().toString(),
+          msg: `Deleted store and associated resources for vendor ID: ${id}`,
+          time: 'Just now',
+        };
+        setAuditLogs((prev) => [newLog, ...prev]);
+      } else {
+        alert(`Failed to delete vendor: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Failed to delete vendor:', err);
+      alert('Failed to delete vendor due to network/server exception.');
+    }
+  };
+
   const handleOverrideCommission = (id: string, rate: number) => {
     setVendors((prev) =>
       prev.map((v) => (v.id === id ? { ...v, commissionRate: rate } : v))
@@ -1181,6 +1205,7 @@ export default function AdminDashboard() {
               onRejectVendor={handleRejectVendor}
               onToggleVendorStatus={handleToggleVendorStatus}
               onOverrideCommission={handleOverrideCommission}
+              onDeleteVendor={handleDeleteVendor}
             />
           )}
 
