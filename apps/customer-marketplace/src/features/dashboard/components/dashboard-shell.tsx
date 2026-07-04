@@ -1,6 +1,10 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Button } from '@villex/ui';
+import { useCustomerAuth } from '@/context/customer-auth-context';
 import { DashboardSidebar } from './dashboard-sidebar';
 import { ProfilePanel } from './profile-panel';
 import { OrderListPanel } from './order-list-panel';
@@ -8,9 +12,20 @@ import { WishlistPanel } from './wishlist-panel';
 import { AddressBookPanel } from './address-book-panel';
 import { ReviewsPanel } from './reviews-panel';
 import { NotificationsPanel, NotificationItem } from './notifications-panel';
+import { PaymentMethodsPanel } from './payment-methods-panel';
 
 export function DashboardShell() {
-  const [activeTab, setActiveTab] = React.useState('profile');
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'profile';
+  const [activeTab, setActiveTab] = React.useState(initialTab);
+  const { isLoggedIn, isLoading } = useCustomerAuth();
+
+  React.useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   // Shared state for notifications so dismiss/read updates are reflected in the sidebar count
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([
@@ -81,6 +96,8 @@ export function DashboardShell() {
         return <WishlistPanel />;
       case 'addresses':
         return <AddressBookPanel />;
+      case 'payments':
+        return <PaymentMethodsPanel />;
       case 'reviews':
         return <ReviewsPanel />;
       case 'notifications':
@@ -94,6 +111,28 @@ export function DashboardShell() {
         return <ProfilePanel />;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8 flex items-center justify-center min-h-[500px]">
+        <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="container mx-auto px-4 py-16 flex flex-col items-center justify-center min-h-[500px] text-center space-y-6 animate-fade-in">
+        <h2 className="text-3xl font-extrabold tracking-tight">Access Restricted</h2>
+        <p className="text-muted-foreground max-w-md">Please sign in to view your profile details, order history, and payment configurations.</p>
+        <Link href="/login">
+          <Button variant="primary" className="h-11 px-6 text-xs font-bold uppercase tracking-wider rounded-xl">
+            Go to Login Page
+          </Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 flex-grow">

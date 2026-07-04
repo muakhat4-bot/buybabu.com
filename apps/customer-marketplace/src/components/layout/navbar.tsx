@@ -4,12 +4,15 @@ import { Button, Card, Input, Logo } from '@villex/ui';
 import { MegaMenu } from './mega-menu';
 import { CartDrawer } from './cart-drawer';
 import { useCart } from '@/features/checkout/context/cart-context';
+import { useCustomerAuth } from '@/context/customer-auth-context';
 
 export function Navbar() {
   const [isMegaMenuOpen, setIsMegaMenuOpen] = React.useState(false);
   const { isCartOpen, setIsCartOpen, cartItems } = useCart();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showSuggestions, setShowSuggestions] = React.useState(false);
+  const { isLoggedIn, profile, signOut } = useCustomerAuth();
+  const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
 
   // Search autocomplete suggestion list
   const suggestions = [
@@ -117,9 +120,65 @@ export function Navbar() {
               </span>
             </button>
 
-            <Link href="/dashboard">
-              <Button variant="outline" className="hidden sm:inline-flex h-9 px-4">My Account</Button>
-            </Link>
+            {!isLoggedIn ? (
+              <Link href="/login">
+                <Button variant="outline" className="hidden sm:inline-flex h-9 px-4 text-xs font-bold uppercase tracking-wider">
+                  Login / Register
+                </Button>
+              </Link>
+            ) : (
+              <div 
+                className="relative"
+                onMouseLeave={() => setIsDropdownOpen(false)}
+              >
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="w-9 h-9 rounded-full bg-gradient-to-tr from-primary to-warning p-0.5 shadow-md flex items-center justify-center font-bold text-foreground text-xs uppercase"
+                  type="button"
+                >
+                  <div className="w-full h-full rounded-full bg-background flex items-center justify-center">
+                    {profile ? `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}`.toUpperCase() : 'U'}
+                  </div>
+                </button>
+
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-xl py-2 z-50 animate-fade-in text-xs font-semibold">
+                    <Link
+                      href="/dashboard?tab=profile"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="block px-4 py-2 text-foreground hover:bg-secondary/40 transition-colors"
+                    >
+                      My Profile
+                    </Link>
+                    <Link
+                      href="/dashboard?tab=orders"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="block px-4 py-2 text-foreground hover:bg-secondary/40 transition-colors"
+                    >
+                      My Orders
+                    </Link>
+                    <Link
+                      href="/dashboard?tab=wishlist"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="block px-4 py-2 text-foreground hover:bg-secondary/40 transition-colors"
+                    >
+                      Wishlist
+                    </Link>
+                    <hr className="border-border my-1" />
+                    <button
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        signOut();
+                      }}
+                      className="w-full text-left block px-4 py-2 text-destructive hover:bg-destructive/10 transition-colors"
+                      type="button"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>

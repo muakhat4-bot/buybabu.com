@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useCustomerAuth } from '@/context/customer-auth-context';
 
 export interface SidebarItem {
   id: string;
@@ -15,6 +16,7 @@ interface DashboardSidebarProps {
 }
 
 export function DashboardSidebar({ activeTab, setActiveTab, unreadNotificationsCount }: DashboardSidebarProps) {
+  const { profile } = useCustomerAuth();
   const menuItems: SidebarItem[] = [
     {
       id: 'profile',
@@ -50,6 +52,15 @@ export function DashboardSidebar({ activeTab, setActiveTab, unreadNotificationsC
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'payments',
+      label: 'Saved Payments',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
         </svg>
       ),
     },
@@ -91,27 +102,27 @@ export function DashboardSidebar({ activeTab, setActiveTab, unreadNotificationsC
           <div className="relative flex-shrink-0">
             <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-primary to-warning p-0.5 shadow-inner">
               <div className="w-full h-full rounded-full bg-background flex items-center justify-center font-extrabold text-foreground text-lg">
-                ZA
+                {profile ? `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}`.toUpperCase() : 'U'}
               </div>
             </div>
             <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-card rounded-full" title="Online"></span>
           </div>
           <div>
-            <h3 className="font-bold text-base leading-snug">Zayn Ali</h3>
+            <h3 className="font-bold text-base leading-snug truncate max-w-[140px]">{profile ? `${profile.first_name} ${profile.last_name}` : 'Customer'}</h3>
             <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-bold mt-1 uppercase tracking-wide">
-              ⭐ VIP Gold
+              ⭐ Buyer
             </span>
           </div>
         </div>
 
         <div className="border-t border-border mt-5 pt-4 space-y-2.5 text-xs text-muted-foreground">
           <div className="flex justify-between">
-            <span>Customer ID:</span>
-            <span className="font-mono text-foreground font-semibold">#VLX-90820</span>
+            <span>Email:</span>
+            <span className="text-foreground font-semibold truncate max-w-[120px]">{profile?.email || 'N/A'}</span>
           </div>
           <div className="flex justify-between">
             <span>Join Date:</span>
-            <span className="text-foreground">June 2024</span>
+            <span className="text-foreground">{profile?.created_at ? new Date(profile.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : 'June 2024'}</span>
           </div>
           <div className="flex justify-between">
             <span>Marketplace:</span>

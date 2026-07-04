@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 import { Button, Card, Input } from '@villex/ui';
+import { useCustomerAuth } from '@/context/customer-auth-context';
+import { supabaseClient } from '@villex/supabase';
 
 interface DeviceSession {
   id: string;
@@ -14,16 +16,21 @@ interface DeviceSession {
 }
 
 export function ProfilePanel() {
+  const { profile: authProfile, refreshProfile } = useCustomerAuth();
+  
   const [profile, setProfile] = React.useState({
-    firstName: 'Zayn',
-    lastName: 'Ali',
-    email: 'zayn.ali@villex.com',
-    phone: '+92 300 1234567',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
   });
 
   const [isEditing, setIsEditing] = React.useState(false);
   const [saveSuccess, setSaveSuccess] = React.useState(false);
   const [passwordSuccess, setPasswordSuccess] = React.useState(false);
+  const [errorMsg, setErrorMsg] = React.useState('');
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isSavingPassword, setIsSavingPassword] = React.useState(false);
 
   const [passwords, setPasswords] = React.useState({
     current: '',
@@ -61,18 +68,71 @@ export function ProfilePanel() {
     },
   ]);
 
-  const handleProfileSave = (e: React.FormEvent) => {
+  React.useEffect(() => {
+    if (authProfile) {
+      setProfile({
+        firstName: authProfile.first_name || '',
+        lastName: authProfile.last_name || '',
+        email: authProfile.email || '',
+        phone: authProfile.phone || '',
+      });
+    }
+  }, [authProfile]);
+
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsEditing(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
+    setErrorMsg('');
+    setIsSaving(true);
+
+    try {
+      // 1. Update user metadata in Supabase
+      const { error } = await supabaseClient.auth.updateUser({
+        data: {
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          phone: profile.phone
+        }
+      });
+      if (error) throw error;
+
+      // 2. Refresh profile (triggers backend sync)
+      await refreshProfile();
+
+      setIsEditing(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to update profile.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handlePasswordSave = (e: React.FormEvent) => {
+  const handlePasswordSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPasswords({ current: '', new: '', confirm: '' });
-    setPasswordSuccess(true);
-    setTimeout(() => setPasswordSuccess(false), 3000);
+    setErrorMsg('');
+
+    if (passwords.new !== passwords.confirm) {
+      setErrorMsg('New passwords do not match.');
+      return;
+    }
+
+    setIsSavingPassword(true);
+
+    try {
+      const { error } = await supabaseClient.auth.updateUser({
+        password: passwords.new
+      });
+      if (error) throw error;
+
+      setPasswords({ current: '', new: '', confirm: '' });
+      setPasswordSuccess(true);
+      setTimeout(() => setPasswordSuccess(false), 3000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to change password.');
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   const handleRevokeSession = (sessionId: string) => {
@@ -100,6 +160,15 @@ export function ProfilePanel() {
             </Button>
           )}
         </div>
+
+        {errorMsg && (
+          <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {errorMsg}
+          </div>
+        )}
 
         {saveSuccess && (
           <div className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm flex items-center gap-2">
