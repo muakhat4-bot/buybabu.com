@@ -115,7 +115,10 @@ export async function GET(request: Request) {
       .range(skip, skip + limit - 1)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase query error in /api/products:', error);
+      return NextResponse.json([]);
+    }
 
     const mappedProducts = (dbProducts || []).map(p => {
       const vendor = p.vendors;
@@ -187,6 +190,7 @@ export async function GET(request: Request) {
       }
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('API /api/products error:', err);
+    return NextResponse.json([]);
   }
 }

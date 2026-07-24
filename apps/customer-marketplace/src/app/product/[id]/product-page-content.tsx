@@ -27,20 +27,30 @@ export function ProductPageContent({ productId }: ProductPageContentProps) {
     const fetchProductData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/products?id=${encodeURIComponent(productId)}`);
-        if (response.ok) {
-          const product = await response.json();
-          setProductInfo(product);
+        const response = await fetch(`/api/products?id=${encodeURIComponent(productId)}`).catch((err) => {
+          console.warn('Product page fetch warning:', err);
+          return null;
+        });
+        if (response && response.ok) {
+          const product = await response.json().catch(() => null);
+          if (product) {
+            setProductInfo(product);
 
-          // Fetch related products
-          const relResponse = await fetch(`/api/products?category=${encodeURIComponent(product.category)}`);
-          if (relResponse.ok) {
-            const relData: Product[] = await relResponse.json();
-            setRelatedProducts(relData.filter(p => p.id !== product.id).slice(0, 3));
+            // Fetch related products
+            const relResponse = await fetch(`/api/products?category=${encodeURIComponent(product.category)}`).catch((err) => {
+              console.warn('Related products fetch warning:', err);
+              return null;
+            });
+            if (relResponse && relResponse.ok) {
+              const relData: Product[] = await relResponse.json().catch(() => []);
+              if (Array.isArray(relData)) {
+                setRelatedProducts(relData.filter(p => p.id !== product.id).slice(0, 3));
+              }
+            }
           }
         }
       } catch (err) {
-        console.error('Failed to fetch product details:', err);
+        console.warn('Failed to fetch product details:', err);
       } finally {
         setIsLoading(false);
       }

@@ -83,7 +83,7 @@
       "firstName": "Zahid",
       "lastName": "Mushtaq",
       "email": "zarkhkhan@gmail.com",
-      "password": "Zahis@##1981",
+      "password": "Zahid@##1981",
       "phone": "03029808684",
       "storeName": "Nova Goods",
       "storeId": "#VLX-MER-997",
@@ -103,6 +103,32 @@
       "wallet": {
         "availableBalance": 0,
         "pendingBalance": 3450,
+        "lifetimeSales": 0,
+        "lifetimeCommission": 0,
+        "transactions": []
+      }
+    },
+    {
+      "email": "almanar.edu.pk@gmail.com",
+      "password": "Pass@2025/-WebSite",
+      "storeName": "Smart Home",
+      "storeId": "#VLX-MER-108",
+      "firstName": "Waqas",
+      "lastName": "Qamar",
+      "phone": "0321-1234567",
+      "status": "PENDING",
+      "joinedDate": "2026-07-24",
+      "revenue": 0,
+      "orders": 0,
+      "verificationStatus": "UNDER_REVIEW",
+      "legalName": "Smart Home Electronics Ltd",
+      "ntnNumber": "NTN-7890123-4",
+      "bankName": "Meezan Bank",
+      "bankAccountTitle": "Smart Home Official",
+      "bankAccountNumber": "MEEZAN-0192837465",
+      "wallet": {
+        "availableBalance": 0,
+        "pendingBalance": 0,
         "lifetimeSales": 0,
         "lifetimeCommission": 0,
         "transactions": []

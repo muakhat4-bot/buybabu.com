@@ -52,7 +52,8 @@ export async function GET() {
 
     return NextResponse.json(mapped);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.warn('Orders GET warning:', err?.message || err);
+    return NextResponse.json([]);
   }
 }
 

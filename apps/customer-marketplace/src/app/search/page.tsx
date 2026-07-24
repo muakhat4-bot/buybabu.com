@@ -40,13 +40,18 @@ function SearchPageContent() {
     const fetchAllProducts = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch('/api/products');
-        if (res.ok) {
-          const data = await res.json();
-          setProductsList(data);
+        const res = await fetch('/api/products').catch((err) => {
+          console.warn('Search fetchAllProducts warning:', err);
+          return null;
+        });
+        if (res && res.ok) {
+          const data = await res.json().catch(() => []);
+          if (Array.isArray(data)) {
+            setProductsList(data);
+          }
         }
       } catch (err) {
-        console.error('Failed to fetch marketplace products:', err);
+        console.warn('Failed to fetch marketplace products:', err);
       } finally {
         setIsLoading(false);
       }

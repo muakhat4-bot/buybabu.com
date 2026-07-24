@@ -173,8 +173,22 @@ export default function Home() {
 
   const [email, setEmail] = React.useState<string>('');
   const [password, setPassword] = React.useState<string>('');
+  const [showPassword, setShowPassword] = React.useState<boolean>(false);
   const [loginError, setLoginError] = React.useState<string>('');
+  const [loginSuccessMessage, setLoginSuccessMessage] = React.useState<string>('');
   const [rememberMe, setRememberMe] = React.useState<boolean>(false);
+
+  // Forgot Password Modal States
+  const [isResetModalOpen, setIsResetModalOpen] = React.useState<boolean>(false);
+  const [resetStep, setResetStep] = React.useState<1 | 2>(1);
+  const [resetEmail, setResetEmail] = React.useState<string>('');
+  const [resetOtp, setResetOtp] = React.useState<string>('849201');
+  const [newPassword, setNewPassword] = React.useState<string>('');
+  const [confirmNewPassword, setConfirmNewPassword] = React.useState<string>('');
+  const [showNewPassword, setShowNewPassword] = React.useState<boolean>(false);
+  const [resetError, setResetError] = React.useState<string>('');
+  const [resetSuccess, setResetSuccess] = React.useState<string>('');
+  const [isResetting, setIsResetting] = React.useState<boolean>(false);
 
   const [activeTab, setActiveTab] = React.useState<string>('overview');
   const [isStoreOnline, setIsStoreOnline] = React.useState<boolean>(true);
@@ -231,111 +245,133 @@ export default function Home() {
   const fetchWallet = React.useCallback(async () => {
     if (!authUser?.email) return;
     try {
-      const response = await fetch('/api/vendors');
-      if (response.ok) {
-        const data = await response.json();
-        const matched = data.find((v: any) => v.email.toLowerCase() === authUser.email.toLowerCase());
-        if (matched) {
-          if (matched.wallet) setWallet(matched.wallet);
-          if (matched.bankName) setBankName(matched.bankName);
-          if (matched.bankAccountTitle) setBankAccountTitle(matched.bankAccountTitle);
-          if (matched.bankAccountNumber) setBankAccountNumber(matched.bankAccountNumber);
-          // Sync live approval status from Supabase so vendor sees admin decision
-          if (matched.status === 'ACTIVE') {
-            setVerificationStatus('APPROVED');
-          } else if (matched.status === 'PENDING') {
-            setVerificationStatus('UNDER_REVIEW');
-          } else if (matched.status === 'REJECTED') {
-            setVerificationStatus('REJECTED');
+      const response = await fetch('/api/vendors').catch((err) => {
+        console.warn('fetchWallet network error:', err);
+        return null;
+      });
+      if (response && response.ok) {
+        const data = await response.json().catch(() => []);
+        if (Array.isArray(data)) {
+          const matched = data.find((v: any) => v.email?.toLowerCase() === authUser.email.toLowerCase());
+          if (matched) {
+            if (matched.wallet) setWallet(matched.wallet);
+            if (matched.bankName) setBankName(matched.bankName);
+            if (matched.bankAccountTitle) setBankAccountTitle(matched.bankAccountTitle);
+            if (matched.bankAccountNumber) setBankAccountNumber(matched.bankAccountNumber);
+            // Sync live approval status from Supabase so vendor sees admin decision
+            if (matched.status === 'ACTIVE') {
+              setVerificationStatus('APPROVED');
+            } else if (matched.status === 'PENDING') {
+              setVerificationStatus('UNDER_REVIEW');
+            } else if (matched.status === 'REJECTED') {
+              setVerificationStatus('REJECTED');
+            }
           }
         }
       }
     } catch (err) {
-      console.error('Failed to fetch wallet details:', err);
+      console.warn('Failed to fetch wallet details:', err);
     }
   }, [authUser?.email]);
 
   const fetchNotifications = React.useCallback(async () => {
     if (!authUser?.email) return;
     try {
-      const response = await fetch(`/api/notifications?email=${encodeURIComponent(authUser.email)}`);
-      if (response.ok) {
-        const data = await response.json();
-        const mapped = data.map((n: any) => ({
-          id: n.id,
-          type: 'SYSTEM',
-          severity: 'INFO',
-          message: n.message,
-          timestamp: formatTimeAgo(n.created_at),
-          read: n.is_read
-        }));
-        setNotifications(mapped);
+      const response = await fetch(`/api/notifications?email=${encodeURIComponent(authUser.email)}`).catch((err) => {
+        console.warn('fetchNotifications network error:', err);
+        return null;
+      });
+      if (response && response.ok) {
+        const data = await response.json().catch(() => []);
+        if (Array.isArray(data)) {
+          const mapped = data.map((n: any) => ({
+            id: n.id,
+            type: 'SYSTEM',
+            severity: 'INFO',
+            message: n.message,
+            timestamp: formatTimeAgo(n.created_at),
+            read: n.is_read
+          }));
+          setNotifications(mapped);
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch vendor notifications:', err);
+      console.warn('Failed to fetch vendor notifications:', err);
     }
   }, [authUser?.email, formatTimeAgo]);
 
   const fetchProducts = React.useCallback(async () => {
     if (!authStore?.id) return;
     try {
-      const response = await fetch(`/api/products?storeId=${encodeURIComponent(authStore.id)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProducts(data);
+      const response = await fetch(`/api/products?storeId=${encodeURIComponent(authStore.id)}`).catch((err) => {
+        console.warn('fetchProducts network error:', err);
+        return null;
+      });
+      if (response && response.ok) {
+        const data = await response.json().catch(() => []);
+        if (Array.isArray(data)) {
+          setProducts(data);
+        }
       }
     } catch (err) {
-      console.error('Failed to fetch vendor products:', err);
+      console.warn('Failed to fetch vendor products:', err);
     }
   }, [authStore?.id]);
 
   const fetchOrders = React.useCallback(async () => {
     try {
-      const response = await fetch('/api/orders');
-      if (response.ok) {
-        const data = await response.json();
-        const formatted = data.map((o: any) => ({
-          id: o.id,
-          customerName: o.customerName,
-          customerPhone: o.customerPhone,
-          shippingAddress: o.shippingAddress,
-          date: o.date,
-          total: o.total,
-          paymentMethod: o.paymentMethod,
-          status: o.status,
-          itemsCount: o.itemsCount,
-          items: o.items,
-          walletPhone: o.walletPhone,
-          walletTid: o.walletTid,
-          carrier: o.carrier,
-          trackingNumber: o.trackingNumber,
-          returnReason: o.returnReason,
-        }));
-        
-        setOrders([...formatted, ...INITIAL_MOCK_ORDERS]);
-
-        // Generate automatic warning alerts for PENDING orders
-        const pendingOrders = formatted.filter((o: any) => o.status === 'PENDING');
-        if (pendingOrders.length > 0) {
-          const newAlerts = pendingOrders.map((o: any) => ({
-            id: `alert-pending-${o.id}`,
-            type: 'ORDER' as const,
-            severity: 'WARNING' as const,
-            message: `Awaiting payment validation for order ${o.id} via ${o.paymentMethod}`,
-            timestamp: 'Just now',
-            read: false,
+      const response = await fetch('/api/orders').catch((err) => {
+        console.warn('fetchOrders network error:', err);
+        return null;
+      });
+      if (response && response.ok) {
+        const data = await response.json().catch(() => []);
+        if (Array.isArray(data)) {
+          const formatted = data.map((o: any) => ({
+            id: o.id,
+            customerName: o.customerName,
+            customerPhone: o.customerPhone,
+            shippingAddress: o.shippingAddress,
+            date: o.date,
+            total: o.total,
+            paymentMethod: o.paymentMethod,
+            status: o.status,
+            itemsCount: o.itemsCount,
+            items: o.items,
+            walletPhone: o.walletPhone,
+            walletTid: o.walletTid,
+            carrier: o.carrier,
+            trackingNumber: o.trackingNumber,
+            returnReason: o.returnReason,
           }));
-          setNotifications(prev => {
-            const existingIds = new Set(prev.map(p => p.id));
-            const filteredNew = newAlerts.filter((a: AlertNotification) => !existingIds.has(a.id));
-            return [...filteredNew, ...prev];
-          });
+          
+          setOrders([...formatted, ...INITIAL_MOCK_ORDERS]);
+
+          // Generate automatic warning alerts for PENDING orders
+          const pendingOrders = formatted.filter((o: any) => o.status === 'PENDING');
+          if (pendingOrders.length > 0) {
+            const newAlerts = pendingOrders.map((o: any) => ({
+              id: `alert-pending-${o.id}`,
+              type: 'ORDER' as const,
+              severity: 'WARNING' as const,
+              message: `Awaiting payment validation for order ${o.id} via ${o.paymentMethod}`,
+              timestamp: 'Just now',
+              read: false,
+            }));
+            setNotifications(prev => {
+              const existingIds = new Set(prev.map(p => p.id));
+              const filteredNew = newAlerts.filter((a: AlertNotification) => !existingIds.has(a.id));
+              return [...filteredNew, ...prev];
+            });
+          }
+        } else {
+          setOrders(INITIAL_MOCK_ORDERS);
         }
       } else {
         setOrders(INITIAL_MOCK_ORDERS);
       }
     } catch (err) {
-      console.error('Failed to fetch vendor orders:', err);
+      console.warn('Failed to fetch vendor orders:', err);
       setOrders(INITIAL_MOCK_ORDERS);
     }
   }, []);
@@ -993,6 +1029,11 @@ export default function Home() {
             }}
             className="space-y-4"
           >
+            {loginSuccessMessage && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs font-semibold p-3 rounded-lg text-center animate-fade-in">
+                {loginSuccessMessage}
+              </div>
+            )}
             {loginError && (
               <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold p-3 rounded-lg text-center animate-fade-in">
                 {loginError}
@@ -1017,17 +1058,48 @@ export default function Home() {
                 <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Password
                 </label>
-                <a href="#" className="text-[10px] font-semibold text-primary hover:underline">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(email || 'almanar.edu.pk@gmail.com');
+                    setResetStep(1);
+                    setResetError('');
+                    setResetSuccess('');
+                    setIsResetModalOpen(true);
+                  }}
+                  className="text-[10px] font-semibold text-primary hover:underline cursor-pointer bg-transparent border-0 p-0"
+                >
                   Forgot Password?
-                </a>
+                </button>
               </div>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.046 10.046 0 012.122-.363c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21m-4.22-4.22L3 3" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center space-x-2 pt-1">
@@ -1060,6 +1132,209 @@ export default function Home() {
             </p>
           </div>
         </Card>
+
+        {/* FORGOT / RESET PASSWORD MODAL */}
+        {isResetModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <Card className="w-full max-w-md bg-card border-border shadow-2xl p-6 rounded-2xl relative space-y-5">
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(false)}
+                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
+              >
+                ✕
+              </button>
+
+              <div className="text-center space-y-1">
+                <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">Reset Password</h2>
+                <p className="text-xs text-muted-foreground">
+                  {resetStep === 1
+                    ? 'Enter your registered merchant email address to receive a verification code.'
+                    : `Enter the code sent to ${resetEmail} and set your new password.`}
+                </p>
+              </div>
+
+              {resetError && (
+                <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold p-3 rounded-lg text-center">
+                  {resetError}
+                </div>
+              )}
+
+              {resetSuccess && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-xs font-semibold p-3 rounded-lg text-center">
+                  {resetSuccess}
+                </div>
+              )}
+
+              {resetStep === 1 ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!resetEmail) {
+                      setResetError('Please enter your merchant email address.');
+                      return;
+                    }
+                    setResetError('');
+                    setIsResetting(true);
+                    setTimeout(() => {
+                      setIsResetting(false);
+                      setResetStep(2);
+                      setResetSuccess('Verification code sent! (Demo Code: 849201)');
+                    }, 800);
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Registered Merchant Email
+                    </label>
+                    <Input
+                      type="email"
+                      placeholder="merchant@villex.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <Button type="submit" variant="primary" className="w-full h-10 font-semibold" disabled={isResetting}>
+                    {isResetting ? 'Sending Code...' : 'Send Verification Code'}
+                  </Button>
+                </form>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!resetOtp) {
+                      setResetError('Verification code is required.');
+                      return;
+                    }
+                    if (!newPassword || newPassword.length < 6) {
+                      setResetError('New password must be at least 6 characters.');
+                      return;
+                    }
+                    if (newPassword !== confirmNewPassword) {
+                      setResetError('New passwords do not match.');
+                      return;
+                    }
+
+                    setResetError('');
+                    setIsResetting(true);
+
+                    try {
+                      const res = await fetch('/api/auth/reset-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: resetEmail, newPassword })
+                      });
+                      const data = await res.json();
+
+                      if (data.success) {
+                        // Update local registered vendors array in localStorage if present
+                        if (typeof window !== 'undefined') {
+                          const stored = localStorage.getItem('villex_registered_vendors');
+                          if (stored) {
+                            try {
+                              const list = JSON.parse(stored);
+                              const idx = list.findIndex((v: any) => v.email.toLowerCase() === resetEmail.toLowerCase());
+                              if (idx >= 0) {
+                                list[idx].password = newPassword;
+                                localStorage.setItem('villex_registered_vendors', JSON.stringify(list));
+                              }
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }
+                        }
+
+                        // Pre-fill login state
+                        setEmail(resetEmail);
+                        setPassword(newPassword);
+                        setLoginSuccessMessage('Password reset successfully! You can now sign in with your new password.');
+                        setIsResetModalOpen(false);
+                      } else {
+                        setResetError(data.error || 'Failed to update password.');
+                      }
+                    } catch (err: any) {
+                      setResetError('Network error resetting password. Please try again.');
+                    } finally {
+                      setIsResetting(false);
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Verification Code (OTP)
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="849201"
+                      value={resetOtp}
+                      onChange={(e) => setResetOtp(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showNewPassword ? 'text' : 'password'}
+                        placeholder="New Password (min 6 characters)"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="pr-10"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                      >
+                        {showNewPassword ? '🙈' : '👁️'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Confirm New Password
+                    </label>
+                    <Input
+                      type="password"
+                      placeholder="Confirm New Password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-1/2 h-10"
+                      onClick={() => setResetStep(1)}
+                    >
+                      Back
+                    </Button>
+                    <Button type="submit" variant="primary" className="w-1/2 h-10 font-semibold" disabled={isResetting}>
+                      {isResetting ? 'Updating...' : 'Update Password'}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </Card>
+          </div>
+        )}
       </div>
     );
   }
