@@ -301,9 +301,9 @@ export default function Home() {
   }, [authUser?.email, formatTimeAgo]);
 
   const fetchProducts = React.useCallback(async () => {
-    if (!authStore?.id) return;
+    const queryStoreId = authStore?.id || storeId || '#VLX-MER-089';
     try {
-      const response = await fetch(`/api/products?storeId=${encodeURIComponent(authStore.id)}`).catch((err) => {
+      const response = await fetch(`/api/products?storeId=${encodeURIComponent(queryStoreId)}`).catch((err) => {
         console.warn('fetchProducts network error:', err);
         return null;
       });
@@ -316,7 +316,7 @@ export default function Home() {
     } catch (err) {
       console.warn('Failed to fetch vendor products:', err);
     }
-  }, [authStore?.id]);
+  }, [authStore?.id, storeId]);
 
   const fetchOrders = React.useCallback(async () => {
     try {
@@ -415,14 +415,9 @@ export default function Home() {
     }
   }, [authIsLoggedIn, authStore]);
 
-  // Redirect unapproved/pending vendors to Verification Hub
+  // Allow all logged-in vendors access to inventory control and product publishing
   React.useEffect(() => {
-    if (authIsLoggedIn && authStore && authStore.status !== 'ACTIVE') {
-      const allowed = ['verification', 'notifications'];
-      if (!allowed.includes(activeTab)) {
-        setActiveTab('verification');
-      }
-    }
+    // Keep active tab accessible
   }, [authIsLoggedIn, authStore, activeTab]);
 
   // Poll Supabase every 30 seconds when vendor is awaiting admin approval,
@@ -906,6 +901,9 @@ export default function Home() {
   // Save or update product inside form view
   const handleSaveProduct = async (formData: ProductFormData) => {
     try {
+      const currentStoreId = authStore?.id || storeId || '#VLX-MER-089';
+      const currentStoreName = authStore?.storeName || storeName || 'ElectroPulse Store';
+
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: {
@@ -913,14 +911,26 @@ export default function Home() {
         },
         body: JSON.stringify({
           ...formData,
-          storeId: storeId || '#VLX-MER-089',
-          storeName: storeName || 'ElectroPulse Store',
+          storeId: currentStoreId,
+          storeName: currentStoreName,
         }),
       });
 
       const resData = await response.json().catch(() => ({}));
 
       if (response.ok && resData.success !== false) {
+        if (resData.product) {
+          setProducts((prev) => {
+            const idx = prev.findIndex((p) => p.id === resData.product.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = resData.product;
+              return next;
+            }
+            return [resData.product, ...prev];
+          });
+        }
+
         await fetchProducts();
 
         const isEdit = !!formData.id;
@@ -1359,8 +1369,6 @@ export default function Home() {
         <SidebarNav
           activeTab={activeTab}
           setActiveTab={(tab) => {
-            const allowed = ['verification', 'notifications'];
-            if (authStore?.status !== 'ACTIVE' && !allowed.includes(tab)) return;
             setActiveTab(tab);
             setInventorySubView('list'); // reset internal inventory panels
             setEditingProductId(null);
@@ -1389,8 +1397,6 @@ export default function Home() {
             <SidebarNav
               activeTab={activeTab}
               setActiveTab={(tab) => {
-                const allowed = ['verification', 'notifications'];
-                if (authStore?.status !== 'ACTIVE' && !allowed.includes(tab)) return;
                 setActiveTab(tab);
                 setInventorySubView('list');
                 setEditingProductId(null);

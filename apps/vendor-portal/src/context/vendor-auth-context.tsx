@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               id: meta.storeId || '#VLX-MER-089',
               storeName: meta.storeName || 'ElectroPulse Store',
               joinedDate: new Date(session.user.created_at).toLocaleDateString(),
-              status: 'PENDING'
+              status: 'ACTIVE'
             });
           }
 

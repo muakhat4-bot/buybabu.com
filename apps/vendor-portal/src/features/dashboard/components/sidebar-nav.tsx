@@ -16,7 +16,7 @@ interface SidebarNavProps {
 
 export function SidebarNav({ activeTab, setActiveTab, notificationsCount, onSignOut, storeName, storeId, vendorEmail, status }: SidebarNavProps) {
   const allowedTabs = ['verification', 'notifications'];
-  const isRestricted = status !== 'ACTIVE';
+  const isRestricted = false;
 
   const menuItems = [
     {

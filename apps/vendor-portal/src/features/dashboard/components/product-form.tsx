@@ -297,21 +297,30 @@ export function ProductForm({ initialData, onSave, onCancel }: ProductFormProps)
   };
 
   // Form submit handler
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    
-    // Sum total stock from variants if variants exist
+  const processSubmit = () => {
+    if (!name.trim()) {
+      alert('Please enter a Product Name before publishing.');
+      return;
+    }
+
+    const calculatedPrice = finalPrice || (regularPrice !== '' ? Number(regularPrice) : 0);
+    if (!calculatedPrice || calculatedPrice <= 0) {
+      alert('Please enter a valid Price (PKR) for your product.');
+      return;
+    }
+
     const finalStock = variants.length > 0
       ? variants.filter(v => v.active).reduce((sum, v) => sum + (v.stock || 0), 0)
       : stock;
 
+    const generatedSku = sku || ('VLX-' + name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 8));
+
     onSave({
       id: initialData?.id,
-      sku: sku || 'VLX-UNKNOWN',
+      sku: generatedSku,
       name: name.trim(),
       category,
-      price: finalPrice || 0,
+      price: calculatedPrice,
       oldPrice: finalOldPrice,
       discount: hasDiscount ? calculatedDiscount : undefined,
       stock: finalStock || 0,
@@ -320,6 +329,11 @@ export function ProductForm({ initialData, onSave, onCancel }: ProductFormProps)
       options,
       variants: variants.filter(v => v.active),
     });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    processSubmit();
   };
 
   return (
@@ -348,6 +362,10 @@ export function ProductForm({ initialData, onSave, onCancel }: ProductFormProps)
             <Button
               type="submit"
               variant="primary"
+              onClick={(e) => {
+                e.preventDefault();
+                processSubmit();
+              }}
               disabled={!name.trim()}
               className="text-[10px] font-black uppercase tracking-wider h-9 px-5 rounded-xl"
             >
