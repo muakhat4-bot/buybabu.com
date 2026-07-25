@@ -918,7 +918,9 @@ export default function Home() {
         }),
       });
 
-      if (response.ok) {
+      const resData = await response.json().catch(() => ({}));
+
+      if (response.ok && resData.success !== false) {
         await fetchProducts();
 
         const isEdit = !!formData.id;
@@ -933,15 +935,26 @@ export default function Home() {
           read: false,
         };
         setNotifications((prev) => [newAlert, ...prev]);
+        setInventorySubView('list');
+        setEditingProductId(null);
       } else {
-        console.error('Failed to save product via API');
+        const errorMsg = resData.error || 'Failed to save product via API';
+        console.error('Failed to save product via API:', errorMsg);
+        const errorAlert: AlertNotification = {
+          id: Date.now().toString(),
+          type: 'INVENTORY',
+          severity: 'WARNING',
+          message: `Publish Failed: ${errorMsg}`,
+          timestamp: 'Just now',
+          read: false,
+        };
+        setNotifications((prev) => [errorAlert, ...prev]);
+        alert(`Failed to publish product: ${errorMsg}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Network error saving product:', err);
+      alert(`Network error saving product: ${err?.message || 'Unknown error'}`);
     }
-
-    setInventorySubView('list');
-    setEditingProductId(null);
   };
 
   // Callback to mark alert as read
