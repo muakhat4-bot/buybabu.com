@@ -235,7 +235,7 @@ export async function GET(request: Request) {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=60, s-maxage=300',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         'x-total-count': totalCount.toString(),
         'x-page': page.toString(),
         'x-limit': limit.toString()
