@@ -154,7 +154,7 @@ export function CheckoutSteps({
         ) : (
           <div className="text-xs md:text-sm space-y-1 text-muted-foreground">
             <p>Logged in as: <strong className="text-foreground">Zayn Ali</strong></p>
-            <p>Email: <span className="font-semibold text-foreground/80">zayn.ali@villex.com</span></p>
+            <p>Email: <span className="font-semibold text-foreground/80">zayn.ali@buybabu.com</span></p>
           </div>
         )}
       </Card>
@@ -334,7 +334,7 @@ export function CheckoutSteps({
 
         {paymentMethod === 'cod' && (
           <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/[0.02] text-xs leading-relaxed text-muted-foreground space-y-1 animate-fade-in">
-            <strong className="text-foreground block">🤝 Villex Open-Parcel Inspection</strong>
+            <strong className="text-foreground block">🤝 Buy Babu Open-Parcel Inspection</strong>
             <p>Pay cash to the courier rider upon parcel arrival. You have the right to open and inspect the package before completing payment.</p>
           </div>
         )}
@@ -392,7 +392,7 @@ export function CheckoutSteps({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground text-[10px] uppercase font-bold">Account Title:</span>
-                  <span className="font-bold">Villex Merchant</span>
+                  <span className="font-bold">Buy Babu Merchant</span>
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground leading-normal">

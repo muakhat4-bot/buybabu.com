@@ -32,7 +32,7 @@ export default function ReturnPolicyPage() {
           <div className="h-px bg-border/60 my-6" />
 
           <p className="text-base text-muted-foreground leading-relaxed">
-            At <strong>Villex</strong>, customer satisfaction is important to us. This Return & Refund Policy explains the conditions under which products may be returned or refunded.
+            At <strong>Buy Babu</strong>, customer satisfaction is important to us. This Return & Refund Policy explains the conditions under which products may be returned or refunded.
           </p>
 
           <p className="text-base text-muted-foreground leading-relaxed">
@@ -212,9 +212,9 @@ export default function ReturnPolicyPage() {
               For any return or refund request, please contact our Customer Support Team as soon as possible.
             </p>
             <ul className="list-none space-y-2 text-sm text-muted-foreground">
-              <li><strong>Email:</strong> support@villex.com</li>
+              <li><strong>Email:</strong> support@buybabu.com</li>
               <li><strong>Phone:</strong> 051-5551234</li>
-              <li><strong>Website:</strong> <Link href="/" className="text-primary hover:underline">www.villex.com</Link></li>
+              <li><strong>Website:</strong> <Link href="/" className="text-primary hover:underline">www.buybabu.com</Link></li>
             </ul>
           </section>
         </article>
@@ -222,7 +222,7 @@ export default function ReturnPolicyPage() {
 
       <footer className="border-t border-border bg-card/60 py-6 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
         </div>
       </footer>
     </div>

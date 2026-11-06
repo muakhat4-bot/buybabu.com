@@ -167,7 +167,7 @@ export default function VendorSignupPage() {
                 Register as a Vendor
               </CardTitle>
               <CardDescription className="text-xs">
-                Start selling on Villex and reach thousands of verified customers today.
+                Start selling on Buy Babu and reach thousands of verified customers today.
               </CardDescription>
             </CardHeader>
 

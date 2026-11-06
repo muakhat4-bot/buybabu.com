@@ -18,13 +18,13 @@ export function CouponForm({ onApplyCoupon, onRemoveCoupon, appliedCode }: Coupo
     setErrorMsg(null);
 
     const formattedCode = inputCode.trim().toUpperCase();
-    if (formattedCode === 'VILLEX20') {
-      onApplyCoupon(20, 'VILLEX20');
+    if (formattedCode === 'BUYBABU20' || formattedCode === 'VILLEX20') {
+      onApplyCoupon(20, 'BUYBABU20');
       setInputCode('');
     } else if (formattedCode === '') {
       setErrorMsg('Please enter a coupon code.');
     } else {
-      setErrorMsg('Invalid coupon code. Try "VILLEX20" for 20% off.');
+      setErrorMsg('Invalid coupon code. Try "BUYBABU20" for 20% off.');
     }
   };
 
@@ -45,7 +45,7 @@ export function CouponForm({ onApplyCoupon, onRemoveCoupon, appliedCode }: Coupo
         <form onSubmit={handleSubmit} className="space-y-2">
           <div className="flex gap-2">
             <Input
-              placeholder="e.g. VILLEX20"
+              placeholder="e.g. BUYBABU20"
               value={inputCode}
               onChange={(e) => {
                 setInputCode(e.target.value);

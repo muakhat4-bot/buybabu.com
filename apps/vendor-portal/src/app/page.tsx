@@ -1033,7 +1033,7 @@ export default function Home() {
               Merchant Login
             </h1>
             <p className="text-xs text-muted-foreground">
-              Access your Villex store dashboard, inventory, and orders.
+              Access your Buy Babu store dashboard, inventory, and orders.
             </p>
           </div>
 
@@ -1069,7 +1069,7 @@ export default function Home() {
               </label>
               <Input
                 type="email"
-                placeholder="merchant@villex.com"
+                placeholder="merchant@buybabu.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -1145,7 +1145,7 @@ export default function Home() {
 
           <div className="border-t border-border/60 pt-4 text-center">
             <p className="text-xs text-muted-foreground">
-              New to Villex?{' '}
+              New to Buy Babu?{' '}
               <a
                 href={`${getMarketplaceUrl()}/vendor-signup`}
                 className="font-bold text-primary hover:underline"
@@ -1218,7 +1218,7 @@ export default function Home() {
                     </label>
                     <Input
                       type="email"
-                      placeholder="merchant@villex.com"
+                      placeholder="merchant@buybabu.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
                       required
@@ -1495,7 +1495,7 @@ export default function Home() {
               )}
               <div className="hidden sm:block select-none text-left">
                 <p className="text-xs font-black text-foreground">
-                  {ownerName || 'Villex Admin'}{' '}
+                  {ownerName || 'Buy Babu Admin'}{' '}
                   <span className="text-[10px] text-primary font-bold lowercase">
                     ({vendorRole.toLowerCase()})
                   </span>

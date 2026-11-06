@@ -204,7 +204,7 @@ export function ProductInfo({ product, onAddToCart }: ProductInfoProps) {
         <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/[0.02] flex items-start space-x-3 text-xs leading-relaxed">
           <span className="text-xl p-1 rounded-lg bg-primary/10">🛡️</span>
           <div>
-            <strong className="text-foreground block">Villex Escrow Protection</strong>
+            <strong className="text-foreground block">Buy Babu Escrow Protection</strong>
             <span className="text-muted-foreground mt-0.5 block">Your funds are held securely in escrow. Money is released to the seller only *after* you receive, verify, and approve the product.</span>
           </div>
         </div>

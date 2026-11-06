@@ -14,19 +14,19 @@ export function ProductFAQ() {
   const faqs: FAQItem[] = [
     {
       q: 'Does this product come with an official brand warranty?',
-      a: 'Yes! All premium electronics from certified partner stores come with a 1-Year Local Brand Warranty. You will receive a stamped warranty card inside the retail packaging. Claims can be registered directly at authorized Sony service centers or processed through the Villex support desk.',
+      a: 'Yes! All premium electronics from certified partner stores come with a 1-Year Local Brand Warranty. You will receive a stamped warranty card inside the retail packaging. Claims can be registered directly at authorized Sony service centers or processed through the Buy Babu support desk.',
     },
     {
       q: 'Can I inspect the parcel before paying for Cash on Delivery?',
-      a: 'Absolutely! With Villex Open-Parcel Inspection, you can open the shipping box and verify the product authenticity in front of the rider before completing the payment. This is part of our commitment to trust and secure shipping.',
+      a: 'Absolutely! With Buy Babu Open-Parcel Inspection, you can open the shipping box and verify the product authenticity in front of the rider before completing the payment. This is part of our commitment to trust and secure shipping.',
     },
     {
       q: 'How does the 7-Day Refund Policy work?',
-      a: 'If you receive a defective, damaged, or incorrect item, you can initiate a return within 7 days. Go to your Orders tab in the dashboard, click "Return Item", and select the reason. Villex will schedule a free pickup from your address. The funds held in our escrow will be refunded back to you instantly upon return arrival verification.',
+      a: 'If you receive a defective, damaged, or incorrect item, you can initiate a return within 7 days. Go to your Orders tab in the dashboard, click "Return Item", and select the reason. Buy Babu will schedule a free pickup from your address. The funds held in our escrow will be refunded back to you instantly upon return arrival verification.',
     },
     {
-      q: 'What is Villex Escrow Protection?',
-      a: 'To prevent online buyer fraud, Villex utilizes an Escrow holding model. When you pay online (via credit card or bank transfer), your funds are not sent directly to the vendor. Instead, they are held by Villex. The vendor only receives the funds once the tracker confirms delivery and you mark the item as approved (or 7 days elapse without disputes).',
+      q: 'What is Buy Babu Escrow Protection?',
+      a: 'To prevent online buyer fraud, Buy Babu utilizes an Escrow holding model. When you pay online (via credit card or bank transfer), your funds are not sent directly to the vendor. Instead, they are held by Buy Babu. The vendor only receives the funds once the tracker confirms delivery and you mark the item as approved (or 7 days elapse without disputes).',
     },
   ];
 

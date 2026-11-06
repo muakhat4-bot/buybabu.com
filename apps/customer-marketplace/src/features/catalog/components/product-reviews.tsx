@@ -112,7 +112,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
     <div id="reviews" className="space-y-6 pt-6 relative">
       <div className="border-b border-border pb-4">
         <h3 className="font-bold text-lg text-foreground">Customer Reviews</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">Real verified buyer reviews collected by the Villex network.</p>
+        <p className="text-xs text-muted-foreground mt-0.5">Real verified buyer reviews collected by the Buy Babu network.</p>
       </div>
 
       {/* Ratings summary breakdown */}

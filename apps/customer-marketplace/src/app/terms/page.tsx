@@ -32,7 +32,7 @@ export default function TermsPage() {
           <div className="h-px bg-border/60 my-6" />
 
           <p className="text-base text-foreground leading-relaxed">
-            Welcome to <strong>Villex</strong>
+            Welcome to <strong>Buy Babu</strong>
           </p>
 
           <p className="text-base text-muted-foreground leading-relaxed">
@@ -51,7 +51,7 @@ export default function TermsPage() {
               For the purposes of these Terms:
             </p>
             <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
-              <li><strong>Marketplace</strong> means [Villex].</li>
+              <li><strong>Marketplace</strong> means Buy Babu.</li>
               <li><strong>Customer</strong> means any person purchasing products through the Marketplace.</li>
               <li><strong>Seller</strong> means an individual or business approved to sell products through the Marketplace.</li>
               <li><strong>User</strong> means any visitor, customer, or seller using the Marketplace.</li>
@@ -358,7 +358,7 @@ export default function TermsPage() {
               For questions regarding these Terms & Conditions, please contact:
             </p>
             <p className="text-sm text-foreground font-semibold">
-              <strong>[Villex]</strong> Customer Service Team.
+              <strong>Buy Babu</strong> Customer Service Team.
             </p>
           </section>
         </article>
@@ -366,7 +366,7 @@ export default function TermsPage() {
 
       <footer className="border-t border-border bg-card/60 py-6 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
         </div>
       </footer>
     </div>

@@ -186,7 +186,7 @@ export function ProductPageContent({ productId }: ProductPageContentProps) {
           <div className="lg:col-span-5 space-y-5">
             <h3 className="font-bold text-lg text-foreground border-b border-border pb-3">About this item</h3>
             <p className="text-xs md:text-sm text-muted-foreground leading-relaxed font-sans">
-              Experience audiophile standard dynamics combined with active lifestyle integrations. Each {productInfo.name} undergoes direct sound calibration and structural stress inspections to match highest quality standard parameters. Packaged inside premium Villex verification materials.
+              Experience audiophile standard dynamics combined with active lifestyle integrations. Each {productInfo.name} undergoes direct sound calibration and structural stress inspections to match highest quality standard parameters. Packaged inside premium Buy Babu verification materials.
             </p>
           </div>
         </div>
@@ -238,7 +238,7 @@ export function ProductPageContent({ productId }: ProductPageContentProps) {
       {/* Footer copyright */}
       <footer className="border-t border-border bg-card/10 py-6 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. All rights reserved.</p>
         </div>
       </footer>
     </div>

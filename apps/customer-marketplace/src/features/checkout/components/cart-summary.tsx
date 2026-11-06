@@ -95,7 +95,7 @@ export function CartSummary({
         </Link>
         
         <p className="text-[10px] text-center text-muted-foreground leading-normal max-w-[250px] mx-auto">
-          By proceeding, your purchase funds are secured under Villex Escrow. Delivery is fully insured.
+          By proceeding, your purchase funds are secured under Buy Babu Escrow. Delivery is fully insured.
         </p>
       </div>
 

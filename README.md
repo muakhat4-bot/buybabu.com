@@ -1,6 +1,6 @@
-# Villex Monorepo
+# Buy Babu Monorepo
 
-Welcome to the Villex Monorepo containing customer-marketplace, vendor-portal, and admin-portal apps powered by TurboRepo and Next.js.
+Welcome to the Buy Babu Monorepo containing customer-marketplace, vendor-portal, and admin-portal apps powered by TurboRepo and Next.js.
 
 ---
 

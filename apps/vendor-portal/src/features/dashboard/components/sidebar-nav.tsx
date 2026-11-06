@@ -107,7 +107,7 @@ export function SidebarNav({ activeTab, setActiveTab, notificationsCount, onSign
         <LogoIcon size="md" />
         <div>
           <span className="text-sm font-black tracking-wider block text-foreground uppercase">
-            VILLEX<span className="text-[#F59E0B] font-black font-sans">.</span>
+            BUY BABU
           </span>
           <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
             Merchant Portal
@@ -166,7 +166,7 @@ export function SidebarNav({ activeTab, setActiveTab, notificationsCount, onSign
       {/* Footer details */}
       <div className="border-t border-border pt-4 flex flex-col space-y-3 px-2">
         <div>
-          <p className="text-[10px] text-muted-foreground">Villex Vendor Admin</p>
+          <p className="text-[10px] text-muted-foreground">Buy Babu Vendor Admin</p>
           <p className="text-[10px] text-muted-foreground font-mono mt-0.5">v1.2.0-SaaS</p>
         </div>
         {onSignOut && (

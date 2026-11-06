@@ -271,7 +271,7 @@ export default function VendorRulesPage() {
 
       <footer className="border-t border-border bg-card/60 py-6 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
         </div>
       </footer>
     </div>

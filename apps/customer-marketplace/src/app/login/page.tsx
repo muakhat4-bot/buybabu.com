@@ -158,7 +158,7 @@ function LoginFormInner() {
               <CardDescription>
                 {activeTab === 'signin' && 'Sign in to access your orders and profile'}
                 {activeTab === 'phone' && 'Authenticate using verification code'}
-                {activeTab === 'register' && 'Sign up to start buying on Villex'}
+                {activeTab === 'register' && 'Sign up to start buying on Buy Babu'}
               </CardDescription>
             </CardHeader>
 
@@ -426,7 +426,7 @@ function LoginFormInner() {
 
       <footer className="border-t border-border bg-card/10 py-6 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -22,7 +22,7 @@ export default function ProhibitedProductsPage() {
         <article className="prose dark:prose-invert max-w-none bg-card border border-border rounded-2xl p-8 md:p-12 shadow-sm space-y-6">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold text-foreground tracking-tight mb-2">
-              Villex Prohibited Products Policy
+              Buy Babu Prohibited Products Policy
             </h1>
             <p className="text-sm text-muted-foreground font-semibold">
               Effective Date: 01-07-2026
@@ -32,15 +32,15 @@ export default function ProhibitedProductsPage() {
           <div className="h-px bg-border/60 my-6" />
 
           <p className="text-base text-muted-foreground leading-relaxed">
-            Welcome to <strong>Villex</strong>.
+            Welcome to <strong>Buy Babu</strong>.
           </p>
 
           <p className="text-base text-muted-foreground leading-relaxed">
-            At Villex, we are committed to providing a safe, trusted, and legally compliant marketplace for our customers and sellers.
+            At Buy Babu, we are committed to providing a safe, trusted, and legally compliant marketplace for our customers and sellers.
           </p>
 
           <p className="text-base text-muted-foreground leading-relaxed">
-            This Prohibited Products Policy identifies products that are not permitted to be listed, stored, advertised, sold, or distributed through the Villex Marketplace or its fulfillment centers.
+            This Prohibited Products Policy identifies products that are not permitted to be listed, stored, advertised, sold, or distributed through the Buy Babu Marketplace or its fulfillment centers.
           </p>
 
           <p className="text-base text-muted-foreground leading-relaxed font-semibold">
@@ -104,7 +104,7 @@ export default function ProhibitedProductsPage() {
               <li>Items intended primarily for unlawful violence.</li>
             </ul>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Lawfully permitted tools or equipment may only be listed where allowed by applicable law and approved by Villex.
+              Lawfully permitted tools or equipment may only be listed where allowed by applicable law and approved by Buy Babu.
             </p>
           </section>
 
@@ -120,14 +120,14 @@ export default function ProhibitedProductsPage() {
               <li>Drug paraphernalia intended for unlawful drug use.</li>
             </ul>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Prescription medicines may only be sold where expressly permitted by law and approved in writing by Villex.
+              Prescription medicines may only be sold where expressly permitted by law and approved in writing by Buy Babu.
             </p>
           </section>
 
           <section className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">5. Alcohol & Tobacco</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Unless specifically permitted by applicable law and approved by Villex, the following are prohibited:
+              Unless specifically permitted by applicable law and approved by Buy Babu, the following are prohibited:
             </p>
             <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
               <li>Alcoholic beverages.</li>
@@ -214,7 +214,7 @@ export default function ProhibitedProductsPage() {
               <li>Comply with applicable food safety regulations.</li>
             </ul>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Villex may reject products that do not meet its quality standards.
+              Buy Babu may reject products that do not meet its quality standards.
             </p>
           </section>
 
@@ -247,7 +247,7 @@ export default function ProhibitedProductsPage() {
               <li>Include genuine accessories where applicable.</li>
             </ul>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Villex may refuse products with known safety defects or excessive customer complaints.
+              Buy Babu may refuse products with known safety defects or excessive customer complaints.
             </p>
           </section>
 
@@ -285,14 +285,14 @@ export default function ProhibitedProductsPage() {
               Any item suspected of being stolen, unlawfully acquired, or otherwise involved in criminal activity is prohibited.
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Villex reserves the right to cooperate with law enforcement authorities where required.
+              Buy Babu reserves the right to cooperate with law enforcement authorities where required.
             </p>
           </section>
 
           <section className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">16. Restricted Products</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Certain products may require prior written approval from Villex before listing, including but not limited to:
+              Certain products may require prior written approval from Buy Babu before listing, including but not limited to:
             </p>
             <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
               <li>High-value electronics.</li>
@@ -300,7 +300,7 @@ export default function ProhibitedProductsPage() {
               <li>Precious stones.</li>
               <li>Professional equipment.</li>
               <li>Regulated medical devices.</li>
-              <li>Other categories identified by Villex from time to time.</li>
+              <li>Other categories identified by Buy Babu from time to time.</li>
             </ul>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Approval does not remove the seller&#39;s responsibility to comply with applicable laws.
@@ -314,7 +314,7 @@ export default function ProhibitedProductsPage() {
             </p>
             <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
               <li>Products comply with Pakistani laws.</li>
-              <li>Products comply with Villex policies.</li>
+              <li>Products comply with Buy Babu policies.</li>
               <li>Product descriptions are accurate.</li>
               <li>Products are genuine and safe.</li>
               <li>Necessary licenses or approvals are obtained where required.</li>
@@ -324,7 +324,7 @@ export default function ProhibitedProductsPage() {
           <section className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">18. Enforcement</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Villex reserves the right to:
+              Buy Babu reserves the right to:
             </p>
             <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
               <li>Reject inventory during inspection.</li>
@@ -336,14 +336,14 @@ export default function ProhibitedProductsPage() {
               <li>Report unlawful activities to the relevant authorities.</li>
             </ul>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Villex may take these actions without prior notice where necessary to protect customers, comply with legal obligations, or maintain marketplace integrity.
+              Buy Babu may take these actions without prior notice where necessary to protect customers, comply with legal obligations, or maintain marketplace integrity.
             </p>
           </section>
 
           <section className="space-y-4">
             <h2 className="text-xl font-bold text-foreground">19. Policy Updates</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Villex may amend this Prohibited Products Policy from time to time.
+              Buy Babu may amend this Prohibited Products Policy from time to time.
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Updated versions will be published on the Marketplace and will become effective on the date specified in the revised policy.
@@ -356,7 +356,7 @@ export default function ProhibitedProductsPage() {
               If you have any questions regarding this Prohibited Products Policy, please contact:
             </p>
             <p className="text-sm text-foreground font-semibold">
-              Villex Customer Support
+              Buy Babu Customer Support
             </p>
           </section>
         </article>
@@ -364,7 +364,7 @@ export default function ProhibitedProductsPage() {
 
       <footer className="border-t border-border bg-card/60 py-6 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
         </div>
       </footer>
     </div>

@@ -337,7 +337,7 @@ export function OrdersLedger({
                   </div>
                   <p className="text-[10px] leading-normal font-semibold text-muted-foreground">
                     {selectedOrder.escrowStatus === 'SECURED_HOLD'
-                      ? 'Funds are safely locked in Villex Platform Escrow hold. Ready for release to seller after courier delivery confirmation.'
+                      ? 'Funds are safely locked in Buy Babu Platform Escrow hold. Ready for release to seller after courier delivery confirmation.'
                       : selectedOrder.escrowStatus === 'RELEASED'
                         ? 'Escrow holds resolved. Funds have been credited to the merchant payout ledger.'
                         : 'Escrow refunded. Transaction cancelled and funds returned to customer wallet balance.'}

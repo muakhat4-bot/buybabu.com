@@ -116,7 +116,7 @@ export function Sidebar({ activeTab, setActiveTab, pendingVendorsCount, pendingP
         <LogoIcon size="md" />
         <div>
           <span className="text-sm font-black tracking-wider block text-foreground uppercase">
-            VILLEX<span className="text-[#F59E0B] font-black font-sans">.</span>
+            BUY BABU
           </span>
           <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
             Super Admin Portal
@@ -170,7 +170,7 @@ export function Sidebar({ activeTab, setActiveTab, pendingVendorsCount, pendingP
 
       {/* Footer details */}
       <div className="border-t border-border pt-4 text-[10px] text-muted-foreground leading-normal px-2">
-        <p>Villex Enterprise Admin</p>
+        <p>Buy Babu Enterprise Admin</p>
         <p className="mt-1 font-mono">v1.2.0-Enterprise</p>
       </div>
     </div>

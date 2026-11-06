@@ -385,7 +385,7 @@ export function OrdersTable({
                 /* Invoice printable preview card */
                 <div className="border-2 border-dashed border-black bg-white text-black p-5 rounded-xl font-mono text-xs space-y-4 mb-6 shadow-inner select-text">
                   <div className="text-center border-b border-black pb-2">
-                    <h4 className="font-bold text-sm">VILLEX MARKETPLACE</h4>
+                    <h4 className="font-bold text-sm">BUY BABU MARKETPLACE</h4>
                     <p className="text-[10px]">Merchant Packing Slip Receipt</p>
                   </div>
                   <div className="flex justify-between text-[10px]">
@@ -483,7 +483,7 @@ export function OrdersTable({
                       <div className="text-[10px] leading-normal font-semibold text-muted-foreground">
                         <p className="text-foreground font-black uppercase tracking-wider text-[8px] text-emerald-500">Escrow Protected Status</p>
                         <p className="mt-1">
-                          Funds for {selectedOrder.id} are secured in the Villex Escrow Hold. Payouts will release to the vendor balance 24 hours after customer delivery verification.
+                          Funds for {selectedOrder.id} are secured in the Buy Babu Escrow Hold. Payouts will release to the vendor balance 24 hours after customer delivery verification.
                         </p>
                       </div>
                     </div>

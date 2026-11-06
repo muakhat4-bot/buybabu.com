@@ -67,7 +67,7 @@ export function PlatformSettings({
       <Card className="bg-card/50 border-border backdrop-blur-md">
         <CardHeader className="pb-3 border-b border-border/40">
           <CardTitle className="text-base font-black uppercase tracking-wider text-foreground">
-            Villex Escrow Parameters
+            Buy Babu Escrow Parameters
           </CardTitle>
           <CardDescription className="text-xs">
             Configure secure escrow release timers and holding policies.

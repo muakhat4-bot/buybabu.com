@@ -896,14 +896,11 @@ export default function AdminDashboard() {
             {/* Logo */}
             <div className="flex flex-col items-center mb-8">
               <div className="flex items-center gap-3 mb-3">
-                <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-10 h-10">
-                  <path d="M6 6h5.5l5 14h-5.5l-5-14z" fill="currentColor" className="text-primary" />
-                  <path d="M26 6h-5.5l-5 14h5.5l5-14z" fill="#F59E0B" />
-                  <circle cx="16" cy="25" r="3.5" fill="#F59E0B" />
-                </svg>
-                <span className="font-black text-2xl text-foreground uppercase tracking-widest">
-                  Villex<span className="text-[#F59E0B]">.</span>
-                </span>
+                <img
+                  src="/buybabu-logo.png"
+                  alt="Buy Babu"
+                  className="h-10 w-auto object-contain select-none"
+                />
               </div>
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Super Admin Portal</p>
             </div>
@@ -1008,7 +1005,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <p className="text-center text-[10px] text-muted-foreground/50 mt-6">
-              © 2026 Villex Marketplace. All rights reserved.
+              © 2026 Buy Babu Marketplace. All rights reserved.
             </p>
           </div>
         </div>

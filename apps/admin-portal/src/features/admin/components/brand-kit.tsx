@@ -20,7 +20,7 @@ export function BrandKit() {
       <div>
         <h1 className="text-3xl font-black tracking-tight text-foreground">Brand & Media Kit</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Explore the official Villex brand design tokens, logo variants, and live mockups of marketing & social media assets.
+          Explore the official Buy Babu brand design tokens, logo variants, and live mockups of marketing & social media assets.
         </p>
       </div>
 
@@ -131,7 +131,7 @@ export function BrandKit() {
                     <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
                       <LogoIcon className="w-6 h-6 text-white" />
                     </div>
-                    <span className="font-black text-sm uppercase tracking-widest text-white">VILLEX.</span>
+                    <span className="font-black text-sm uppercase tracking-widest text-white">BUY BABU</span>
                   </div>
                   <span className="text-[8px] bg-emerald-500 text-white font-extrabold px-2 py-0.5 rounded-full uppercase">Verified Escrow Protection</span>
                 </div>
@@ -156,7 +156,7 @@ export function BrandKit() {
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-1.5">
                     <LogoIcon className="w-5 h-5 text-white" />
-                    <span className="font-black text-xs uppercase tracking-widest text-white">VILLEX.</span>
+                    <span className="font-black text-xs uppercase tracking-widest text-white">BUY BABU</span>
                   </div>
                   <span className="text-[7px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full font-bold uppercase">Enterprise Commerce Hub</span>
                 </div>
@@ -165,7 +165,7 @@ export function BrandKit() {
                   <p className="text-[8px] text-slate-400">Escrow-backed transactions and API-driven catalog optimization.</p>
                 </div>
                 <div className="text-[7px] text-slate-500">
-                  © 2026 Villex Inc. All rights reserved.
+                  © 2026 Buy Babu Inc. All rights reserved.
                 </div>
               </div>
             </div>
@@ -177,7 +177,7 @@ export function BrandKit() {
                 <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none"></div>
                 <div className="flex justify-between items-center">
                   <Logo size="sm" />
-                  <span className="text-[8px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-bold">@villex_pk</span>
+                  <span className="text-[8px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full font-bold">@buybabu_pk</span>
                 </div>
                 
                 <div className="flex flex-col items-center justify-center space-y-4 my-auto">

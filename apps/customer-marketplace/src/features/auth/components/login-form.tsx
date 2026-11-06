@@ -15,7 +15,7 @@ export function LoginForm() {
   return (
     <Card glass className="w-full max-w-md shadow-2xl">
       <CardHeader className="text-center">
-        <CardTitle className="text-3xl font-bold tracking-tight">Welcome to Villex</CardTitle>
+        <CardTitle className="text-3xl font-bold tracking-tight">Welcome to Buy Babu</CardTitle>
         <CardDescription>Sign in to your marketplace account</CardDescription>
       </CardHeader>
 

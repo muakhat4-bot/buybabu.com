@@ -27,8 +27,12 @@ export function Navbar() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4 relative">
           {/* Brand & Desktop Links */}
           <div className="flex items-center gap-6">
-            <Link href="/">
-              <Logo size="md" />
+            <Link href="/" className="flex items-center focus:outline-none">
+              <img
+                src="/buybabu-logo.png"
+                alt="Buy Babu"
+                className="h-8 sm:h-9 md:h-10 w-auto object-contain select-none"
+              />
             </Link>
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
               <button

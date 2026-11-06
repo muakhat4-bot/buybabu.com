@@ -85,7 +85,7 @@ export function ReportsPerformance() {
               Admin Commission Revenue
             </CardTitle>
             <CardDescription className="text-xs">
-              Daily earnings from Villex 10% platform fees.
+              Daily earnings from Buy Babu 10% platform fees.
             </CardDescription>
           </div>
           <div className="p-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-[9px] font-black uppercase tracking-wider">

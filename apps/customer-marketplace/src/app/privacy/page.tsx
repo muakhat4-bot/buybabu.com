@@ -32,7 +32,7 @@ export default function PrivacyPolicyPage() {
           <div className="h-px bg-border/60 my-6" />
 
           <p className="text-base text-muted-foreground leading-relaxed">
-            Welcome to <strong>Villex</strong>
+            Welcome to <strong>Buy Babu</strong>
           </p>
 
           <p className="text-base text-muted-foreground leading-relaxed">
@@ -305,7 +305,7 @@ export default function PrivacyPolicyPage() {
               If you have questions, concerns, or requests regarding this Privacy Policy, please contact us:
             </p>
             <p className="text-sm text-foreground font-semibold">
-              <strong>[Villex]</strong> Customer Service
+              <strong>Buy Babu</strong> Customer Service
             </p>
           </section>
         </article>
@@ -313,7 +313,7 @@ export default function PrivacyPolicyPage() {
 
       <footer className="border-t border-border bg-card/60 py-6 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
         </div>
       </footer>
     </div>

@@ -219,7 +219,7 @@ export default function CheckoutPage() {
                   </>
                 ) : (
                   <>
-                    Thank you Zayn! Your credit card payment has been successfully secured under Villex Escrow. The merchant has been notified to ship your parcel.
+                    Thank you Zayn! Your credit card payment has been successfully secured under Buy Babu Escrow. The merchant has been notified to ship your parcel.
                   </>
                 )}
               </p>
@@ -364,7 +364,7 @@ export default function CheckoutPage() {
                 shippingFee={shippingFee}
                 submitting={submitting}
                 onSubmit={handlePlaceOrder}
-                couponCode={discountPercent > 0 ? "VILLEX20" : ""}
+                couponCode={discountPercent > 0 ? "BUYBABU20" : ""}
               />
             </div>
           </div>
@@ -374,7 +374,7 @@ export default function CheckoutPage() {
       {/* Footer copyright */}
       <footer className="border-t border-border bg-card/10 py-6 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. All rights reserved.</p>
         </div>
       </footer>
     </div>

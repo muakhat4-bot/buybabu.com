@@ -160,7 +160,7 @@ export async function PUT(request: Request) {
               orderId: order.order_number,
               date: today,
               status: 'COMPLETED',
-              details: `10% Villex Commission for Order #${order.order_number}`
+              details: `10% Buy Babu Commission for Order #${order.order_number}`
             });
           }
 

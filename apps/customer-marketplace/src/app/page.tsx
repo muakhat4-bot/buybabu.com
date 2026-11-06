@@ -382,7 +382,7 @@ export default function Home() {
       {/* 7. Newsletter Section */}
       <section className="py-16 bg-gradient-to-r from-primary/10 via-background to-primary/5 border-t border-border">
         <div className="container mx-auto px-4 max-w-3xl text-center space-y-6">
-          <h2 className="text-3xl font-extrabold tracking-tight">Stay updated with Villex</h2>
+          <h2 className="text-3xl font-extrabold tracking-tight">Stay updated with Buy Babu</h2>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Subscribe to our newsletter to receive flash deals alerts, store discount coupons, and direct vendor promotional updates.
           </p>
@@ -407,7 +407,7 @@ export default function Home() {
           <div className="space-y-4 col-span-2 md:col-span-1">
             <Logo size="sm" className="mb-4" />
             <p className="text-xs leading-relaxed">
-              Villex is the next generation multi-vendor e-commerce platform built to prioritize trust, fast catalog parsing, and clean design interfaces.
+              Buy Babu is the next generation multi-vendor e-commerce platform built to prioritize trust, fast catalog parsing, and clean design interfaces.
             </p>
           </div>
           <div>
@@ -425,7 +425,7 @@ export default function Home() {
           <div>
             <h4 className="font-bold text-foreground mb-4">Make Money</h4>
             <ul className="space-y-2 text-xs">
-              <li><Link href="/vendor-signup" className="hover:text-foreground">Sell on Villex</Link></li>
+              <li><Link href="/vendor-signup" className="hover:text-foreground">Sell on Buy Babu</Link></li>
               <li><a href="#" className="hover:text-foreground">Join Affiliate Program</a></li>
               <li><a href="#" className="hover:text-foreground">Advertising Partner</a></li>
               <li><Link href="/vendor-rules" className="hover:text-foreground">Vendor Rules</Link></li>
@@ -445,7 +445,7 @@ export default function Home() {
         </div>
 
         <div className="container mx-auto px-4 mt-8 pt-8 border-t border-border/60 text-center text-xs">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. Designed and engineered for high-performance scale.</p>
         </div>
       </footer>
     </div>

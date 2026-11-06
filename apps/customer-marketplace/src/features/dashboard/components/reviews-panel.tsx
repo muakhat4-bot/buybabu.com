@@ -65,7 +65,7 @@ export function ReviewsPanel() {
   const [reviewHistory, setReviewHistory] = React.useState<ReviewHistoryItem[]>([
     {
       id: 'rev-1',
-      productName: 'Villex Custom Sneakers Red-Pro',
+      productName: 'Buy Babu Custom Sneakers Red-Pro',
       productImage: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&auto=format&fit=crop&q=80',
       rating: 5,
       comment: 'Extremely comfortable fit, and the red shade looks even cleaner in person! Delivery was super fast within 24 hours in Islamabad. Recommended!',

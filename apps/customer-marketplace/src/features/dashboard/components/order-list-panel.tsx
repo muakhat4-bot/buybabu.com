@@ -67,7 +67,7 @@ const INITIAL_MOCK_ORDERS: Order[] = [
     items: [
       {
         id: 'item-3',
-        name: 'Villex Custom Sneakers Red-Pro',
+        name: 'Buy Babu Custom Sneakers Red-Pro',
         image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&auto=format&fit=crop&q=80',
         qty: 1,
         price: 14500,
@@ -135,7 +135,7 @@ export function OrderListPanel() {
   const getProductId = (itemId: string, itemName: string) => {
     if (itemId === 'item-1' || itemName.includes('Sony WH-1000XM5')) return 'p-1';
     if (itemId === 'item-2' || itemName.includes('Mechanical Backlit Keyboard')) return 'p-2';
-    if (itemId === 'item-3' || itemName.includes('Villex Custom Sneakers')) return 'p-3';
+    if (itemId === 'item-3' || itemName.includes('Villex Custom Sneakers') || itemName.includes('Buy Babu Custom Sneakers')) return 'p-3';
     if (itemId === 'item-4' || itemName.includes('Ultralight Ergo Wireless Gaming Mouse')) return 'p-4';
     return itemId;
   };

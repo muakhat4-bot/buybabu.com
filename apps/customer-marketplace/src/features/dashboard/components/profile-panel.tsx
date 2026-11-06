@@ -59,7 +59,7 @@ export function ProfilePanel() {
     },
     {
       id: 'sess-3',
-      device: 'Villex Mobile App',
+      device: 'Buy Babu Mobile App',
       os: 'Android 14',
       ip: '110.37.210.15',
       location: 'Karachi, PK',
@@ -306,7 +306,7 @@ export function ProfilePanel() {
       <Card className="p-6">
         <div className="border-b border-border pb-4 mb-6">
           <h3 className="font-bold text-lg">Active Sessions</h3>
-          <p className="text-xs text-muted-foreground">Devices currently logged into your Villex account. Revoke session access if you see unrecognized devices.</p>
+          <p className="text-xs text-muted-foreground">Devices currently logged into your Buy Babu account. Revoke session access if you see unrecognized devices.</p>
         </div>
 
         <div className="divide-y divide-border">

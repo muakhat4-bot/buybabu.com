@@ -264,7 +264,7 @@ export default function StoreDetailPage() {
       {/* Footer */}
       <footer className="border-t border-border bg-card/60 py-8 text-center text-xs text-muted-foreground mt-auto">
         <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Villex Multi-Vendor Marketplace. Escrow Protection Active.</p>
+          <p>© {new Date().getFullYear()} Buy Babu Multi-Vendor Marketplace. Escrow Protection Active.</p>
         </div>
       </footer>
     </div>
