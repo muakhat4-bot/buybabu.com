@@ -36,7 +36,9 @@
     "handlebars": "^4.7.10",
     "proxy-addr": "^2.0.8",
     "body-parser": "^2.4.0",
-    "sharp": "^0.35.5"
+    "sharp": "^0.35.5",
+    "minimatch": "^11.0.1",
+    "glob": "^14.0.4"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0"
