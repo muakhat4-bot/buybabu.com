@@ -1,86 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, VendorStatus } from '@villex/supabase';
 import { randomUUID } from 'crypto';
-import fs from 'fs';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
-
-function getDbJsonPath() {
-  const possiblePaths = [
-    path.resolve(process.cwd(), '../../db.json'),
-    path.resolve(process.cwd(), '../db.json'),
-    path.resolve(process.cwd(), 'db.json'),
-    'd:\\Master Project\\Villex\\db.json'
-  ];
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return path.resolve(process.cwd(), '../../db.json');
-}
-
-function readLocalDbVendors() {
-  try {
-    const p = getDbJsonPath();
-    if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-      return data.vendors || [];
-    }
-  } catch (err) {
-    console.error('Error reading local db.json:', err);
-  }
-  return [];
-}
-
-function saveLocalDbVendor(vendorData: any) {
-  try {
-    const p = getDbJsonPath();
-    let data: any = { vendors: [] };
-    if (fs.existsSync(p)) {
-      data = JSON.parse(fs.readFileSync(p, 'utf8'));
-    }
-    if (!data.vendors) data.vendors = [];
-    const idx = data.vendors.findIndex(
-      (v: any) => (v.email && vendorData.email && v.email.toLowerCase() === vendorData.email.toLowerCase()) || (v.storeId && v.storeId === vendorData.storeId)
-    );
-    if (idx >= 0) {
-      data.vendors[idx] = { ...data.vendors[idx], ...vendorData };
-    } else {
-      data.vendors.push({
-        status: 'PENDING',
-        verificationStatus: 'UNDER_REVIEW',
-        joinedDate: new Date().toISOString().split('T')[0],
-        revenue: 0,
-        orders: 0,
-        wallet: { availableBalance: 0, pendingBalance: 0, lifetimeSales: 0, lifetimeCommission: 0, transactions: [] },
-        ...vendorData
-      });
-    }
-    fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error writing vendor to db.json:', err);
-  }
-}
-
-function updateLocalDbVendorStatus(emailOrId: string, status: string, verificationStatus?: string) {
-  try {
-    const p = getDbJsonPath();
-    if (!fs.existsSync(p)) return;
-    const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-    if (!data.vendors) return;
-    const vendor = data.vendors.find(
-      (v: any) => (v.email && v.email.toLowerCase() === emailOrId.toLowerCase()) || v.storeId === emailOrId || v.id === emailOrId
-    );
-    if (vendor) {
-      vendor.status = status;
-      if (verificationStatus) vendor.verificationStatus = verificationStatus;
-      fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
-    }
-  } catch (err) {
-    console.error('Error updating vendor status in db.json:', err);
-  }
-}
-
 
 export async function GET() {
   try {
@@ -111,21 +33,10 @@ export async function GET() {
       };
     });
 
-    const localVendors = readLocalDbVendors();
-    const combined = [...mapped];
-    for (const lv of localVendors) {
-      const exists = combined.some(
-        (v) => (v.email && lv.email && v.email.toLowerCase() === lv.email.toLowerCase()) || (v.storeId && lv.storeId && v.storeId === lv.storeId)
-      );
-      if (!exists) {
-        combined.push(lv);
-      }
-    }
-
-    return NextResponse.json(combined);
+    return NextResponse.json(mapped);
   } catch (err: any) {
-    console.warn("Supabase error on vendor-portal GET /api/vendors, returning db.json fallback:", err?.message || err);
-    return NextResponse.json(readLocalDbVendors());
+    console.warn("Supabase error on vendor-portal GET /api/vendors:", err?.message || err);
+    return NextResponse.json([]);
   }
 }
 
@@ -289,16 +200,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, vendor: { ...body, storeId: vendor.id } });
   } catch (err: any) {
-    console.warn("Supabase error on vendor portal POST /api/vendors:", err?.message || err);
-    saveLocalDbVendor(body);
+    console.error("Supabase error on vendor portal POST /api/vendors:", err?.message || err);
     return NextResponse.json({ 
-      success: true, 
-      vendor: { 
-        ...body, 
-        storeId: body.storeId || `#VLX-MER-${Math.floor(100 + Math.random() * 900)}`,
-        status: body.status || 'PENDING'
-      } 
-    });
+      success: false, 
+      error: err?.message || 'Failed to update vendor'
+    }, { status: 500 });
   }
 }
 

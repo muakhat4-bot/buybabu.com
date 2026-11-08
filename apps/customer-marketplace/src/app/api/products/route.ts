@@ -1,35 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, ProductStatus } from '@villex/supabase';
-import fs from 'fs';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
-
-function getDbJsonPath() {
-  const possiblePaths = [
-    path.resolve(process.cwd(), '../../db.json'),
-    path.resolve(process.cwd(), '../db.json'),
-    path.resolve(process.cwd(), 'db.json'),
-    'd:\\Master Project\\Villex\\db.json'
-  ];
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return path.resolve(process.cwd(), '../../db.json');
-}
-
-function readLocalDbProducts() {
-  try {
-    const p = getDbJsonPath();
-    if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-      return data.products || [];
-    }
-  } catch (err) {
-    console.error('Error reading local db.json products in marketplace:', err);
-  }
-  return [];
-}
 
 function reconstructOptions(variants: any[]): any[] {
   const optionsMap: Record<string, Set<string>> = {};
@@ -183,16 +155,7 @@ export async function GET(request: Request) {
       console.warn('Customer marketplace Supabase query warning:', dbErr);
     }
 
-    // Merge with db.json products
-    const localProducts = readLocalDbProducts();
     let combined = [...mappedProducts];
-
-    for (const lp of localProducts) {
-      const exists = combined.some((p) => p.id === lp.id || (p.sku && lp.sku && p.sku.toLowerCase() === lp.sku.toLowerCase()));
-      if (!exists) {
-        combined.push(lp);
-      }
-    }
 
     // Apply storeId filtering
     if (storeId) {

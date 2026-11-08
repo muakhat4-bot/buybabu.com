@@ -1,22 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@villex/supabase';
-import fs from 'fs';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
-
-function getDbJsonPath() {
-  const possiblePaths = [
-    path.resolve(process.cwd(), '../../db.json'),
-    path.resolve(process.cwd(), '../db.json'),
-    path.resolve(process.cwd(), 'db.json'),
-    'd:\\Master Project\\Villex\\db.json'
-  ];
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return path.resolve(process.cwd(), '../../db.json');
-}
 
 export async function POST(request: Request) {
   try {
@@ -28,41 +13,32 @@ export async function POST(request: Request) {
 
     const emailLower = email.toLowerCase().trim();
 
-    // 1. Update local db.json
-    try {
-      const p = getDbJsonPath();
-      if (fs.existsSync(p)) {
-        const fileContent = fs.readFileSync(p, 'utf8');
-        const data = JSON.parse(fileContent);
-        if (data.vendors && Array.isArray(data.vendors)) {
-          const vendorIdx = data.vendors.findIndex(
-            (v: any) => v.email && v.email.toLowerCase().trim() === emailLower
-          );
-          if (vendorIdx >= 0) {
-            data.vendors[vendorIdx].password = newPassword;
-            fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
-          }
-        }
-      }
-    } catch (dbErr) {
-      console.warn('db.json update error on reset-password:', dbErr);
+    // 1. Update Supabase user in users table & Supabase Auth
+    const { data: user, error: findErr } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', emailLower)
+      .maybeSingle();
+
+    if (findErr) {
+      console.warn('Supabase find user warning:', findErr.message);
     }
 
-    // 2. Attempt Supabase user password update if available
-    try {
-      const { data: user, error: findErr } = await supabaseAdmin
+    if (user) {
+      // Update custom password_hash in database
+      await supabaseAdmin
         .from('users')
-        .select('id')
-        .eq('email', emailLower)
-        .maybeSingle();
+        .update({ password_hash: 'plain:' + newPassword })
+        .eq('id', user.id);
 
-      if (!findErr && user) {
+      // Also update Supabase Auth user password if exists in Auth
+      try {
         await supabaseAdmin.auth.admin.updateUserById(user.id, {
           password: newPassword
-        }).catch((sbErr) => console.warn('Supabase admin password update warning:', sbErr));
+        });
+      } catch (authErr: any) {
+        console.warn('Supabase auth admin password update note:', authErr?.message || authErr);
       }
-    } catch (sbErr) {
-      console.warn('Supabase reset password fallback warning:', sbErr);
     }
 
     return NextResponse.json({

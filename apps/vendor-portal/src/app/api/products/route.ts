@@ -1,121 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, VendorStatus } from '@villex/supabase';
 import { randomUUID } from 'crypto';
-import fs from 'fs';
-import path from 'path';
 
 export const dynamic = 'force-dynamic';
-
-function getDbJsonPath() {
-  const possiblePaths = [
-    path.resolve(process.cwd(), '../../db.json'),
-    path.resolve(process.cwd(), '../db.json'),
-    path.resolve(process.cwd(), 'db.json'),
-    'd:\\Master Project\\Villex\\db.json'
-  ];
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return path.resolve(process.cwd(), '../../db.json');
-}
-
-function readLocalDbProducts() {
-  try {
-    const p = getDbJsonPath();
-    if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-      return data.products || [];
-    }
-  } catch (err) {
-    console.error('Error reading local db.json products:', err);
-  }
-  return [];
-}
-
-function readLocalDbVendors() {
-  try {
-    const p = getDbJsonPath();
-    if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-      return data.vendors || [];
-    }
-  } catch (err) {
-    console.error('Error reading local db.json vendors:', err);
-  }
-  return [];
-}
-
-function saveLocalDbProduct(productData: any) {
-  try {
-    const p = getDbJsonPath();
-    let data: any = { products: [] };
-    if (fs.existsSync(p)) {
-      data = JSON.parse(fs.readFileSync(p, 'utf8'));
-    }
-    if (!data.products) data.products = [];
-
-    const existingIdx = data.products.findIndex((prod: any) => 
-      (productData.id && prod.id === productData.id) ||
-      (productData.sku && prod.sku && prod.sku.toLowerCase() === productData.sku.toLowerCase())
-    );
-
-    const images = productData.images || [];
-    const imageMain = images[0] || productData.image || 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=500&auto=format&fit=crop&q=80';
-
-    const newProd = {
-      id: productData.id || `p-${Date.now()}`,
-      sku: productData.sku || `VLX-${Date.now()}`,
-      name: productData.name,
-      category: (productData.category || 'smart gadgets').toLowerCase(),
-      price: Number(productData.price || 0),
-      oldPrice: productData.oldPrice ? Number(productData.oldPrice) : undefined,
-      discount: productData.discount,
-      stock: Number(productData.stock || 0),
-      description: productData.description || '',
-      images: images,
-      image: imageMain,
-      options: productData.options || [],
-      variants: productData.variants || [],
-      storeId: productData.storeId,
-      storeName: productData.storeName,
-      status: 'PUBLISHED',
-      approvalStatus: productData.approvalStatus || 'APPROVED',
-      approval_status: productData.approvalStatus || 'APPROVED',
-      rating: productData.rating || 5.0,
-      reviews: productData.reviews || 0,
-      inStock: Number(productData.stock || 0) > 0,
-      freeShipping: true,
-      expressDelivery: true
-    };
-
-    if (existingIdx >= 0) {
-      data.products[existingIdx] = { ...data.products[existingIdx], ...newProd };
-    } else {
-      data.products.unshift(newProd);
-    }
-
-    fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
-    return newProd;
-  } catch (err) {
-    console.error('Error writing product to db.json:', err);
-    return null;
-  }
-}
-
-function deleteLocalDbProduct(idOrSku: string) {
-  try {
-    const p = getDbJsonPath();
-    if (!fs.existsSync(p)) return;
-    const data = JSON.parse(fs.readFileSync(p, 'utf8'));
-    if (!data.products) return;
-    data.products = data.products.filter(
-      (prod: any) => prod.id !== idOrSku && prod.sku !== idOrSku && !prod.slug?.startsWith(idOrSku)
-    );
-    fs.writeFileSync(p, JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Error deleting product from db.json:', err);
-  }
-}
 
 function reconstructOptions(variants: any[]): any[] {
   const optionsMap: Record<string, Set<string>> = {};
@@ -270,16 +157,7 @@ export async function GET(request: Request) {
       console.warn('Supabase products fetch warning:', dbErr);
     }
 
-    // Merge with db.json products
-    const localProducts = readLocalDbProducts();
     let combined = [...mappedProducts];
-
-    for (const lp of localProducts) {
-      const exists = combined.some((p) => p.id === lp.id || (p.sku && lp.sku && p.sku.toLowerCase() === lp.sku.toLowerCase()));
-      if (!exists) {
-        combined.push(lp);
-      }
-    }
 
     // Apply storeId filtering
     if (storeId) {
@@ -338,9 +216,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
     }
 
-    // Always save to db.json to guarantee product creation works seamlessly
-    const savedLocalProduct = saveLocalDbProduct(body);
-
     // Try saving to Supabase for database persistence
     try {
       // Find or auto-create vendor in Supabase to satisfy FK constraints
@@ -365,13 +240,7 @@ export async function POST(request: Request) {
 
       if (!vendor) {
         // Auto-create vendor profile in Supabase so product insertion succeeds
-        const localVendors = readLocalDbVendors();
-        const matchedLocal = localVendors.find((v: any) =>
-          (v.storeId && body.storeId && v.storeId === body.storeId) ||
-          (v.storeName && body.storeName && v.storeName.toLowerCase() === body.storeName.toLowerCase())
-        );
-
-        const storeName = body.storeName || matchedLocal?.storeName || 'Nova Goods';
+        const storeName = body.storeName || 'Nova Goods';
         const storeSlug = storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
         const { data: newVendor } = await supabaseAdmin
@@ -380,8 +249,8 @@ export async function POST(request: Request) {
             id: randomUUID(),
             store_name: storeName,
             store_slug: storeSlug,
-            support_email: matchedLocal?.email || 'vendor@villex.com',
-            support_phone: matchedLocal?.phone || '',
+            support_email: 'vendor@villex.com',
+            support_phone: '',
             status: VendorStatus.ACTIVE,
             commission_rate: 10.00
           })
@@ -535,12 +404,12 @@ export async function POST(request: Request) {
         }
       }
     } catch (supabaseErr) {
-      console.warn('Supabase product insert exception (saved locally):', supabaseErr);
+      console.warn('Supabase product insert exception:', supabaseErr);
     }
 
     return NextResponse.json({
       success: true,
-      product: savedLocalProduct || { ...body, id: body.id || `p-${Date.now()}` }
+      product: { ...body, id: body.id || `p-${Date.now()}` }
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 400 });
@@ -555,8 +424,6 @@ export async function DELETE(request: Request) {
     if (!id) {
       return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
     }
-
-    deleteLocalDbProduct(id);
 
     try {
       let product = null;

@@ -87,16 +87,21 @@ const INITIAL_MOCK_ORDERS: GlobalOrder[] = [
 ];
 
 // ─── Admin Credentials (hardcoded) ───────────────────────────────────────────
-const ADMIN_EMAIL = 'Almanar.edu.pk@gmail.com';
-const ADMIN_PASSWORD = 'Pass@2025/-WebSite';
 const ADMIN_NAME = 'Abu Saad';
+
+const adminFetch = (url: string, init?: RequestInit) => {
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...(init?.headers || {})
+    }
+  });
+};
 
 export default function AdminDashboard() {
   // ── Auth state ─────────────────────────────────────────────────────────────
   // IMPORTANT: Always initialise to `false` so SSR and client render the same
-  // HTML (login screen). After mount, useEffect reads sessionStorage and
-  // switches to `true` if a valid session exists. This eliminates the
-  // React hydration mismatch caused by typeof-window guards in useState.
+  // HTML (login screen). After mount, useEffect checks server-side session.
   const [mounted, setMounted] = React.useState(false);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const [loginEmail, setLoginEmail] = React.useState('');
@@ -105,30 +110,56 @@ export default function AdminDashboard() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [isLoggingIn, setIsLoggingIn] = React.useState(false);
 
-  // Sync session from sessionStorage after first client render
+  // Validate session securely with server-side /api/auth/me
   React.useEffect(() => {
-    setMounted(true);
-    if (sessionStorage.getItem('villex_admin_session') === '1') {
-      setIsLoggedIn(true);
-    }
+    fetch('/api/auth/me')
+      .then((res) => {
+        if (res.ok) {
+          setIsLoggedIn(true);
+        } else {
+          setIsLoggedIn(false);
+          sessionStorage.removeItem('bb_admin_session_active');
+        }
+      })
+      .catch(() => {
+        setIsLoggedIn(false);
+      })
+      .finally(() => {
+        setMounted(true);
+      });
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
-    await new Promise((r) => setTimeout(r, 600));
-    if (loginEmail.trim() === ADMIN_EMAIL && loginPassword === ADMIN_PASSWORD) {
-      sessionStorage.setItem('villex_admin_session', '1');
-      setIsLoggedIn(true);
-    } else {
-      setLoginError('Invalid email or password. Please try again.');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail.trim(), password: loginPassword })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        sessionStorage.setItem('bb_admin_session_active', '1');
+        setIsLoggedIn(true);
+        setLoginEmail('');
+        setLoginPassword('');
+      } else {
+        setLoginError(data.error || 'Invalid email or password. Please try again.');
+      }
+    } catch (err: any) {
+      setLoginError('Authentication service unreachable. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
     }
-    setIsLoggingIn(false);
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('villex_admin_session');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
+    sessionStorage.removeItem('bb_admin_session_active');
     setIsLoggedIn(false);
     setLoginEmail('');
     setLoginPassword('');
@@ -149,7 +180,7 @@ export default function AdminDashboard() {
 
   const fetchNotifications = React.useCallback(async () => {
     try {
-      const response = await fetch('/api/notifications');
+      const response = await adminFetch('/api/notifications');
       if (response.ok) {
         const data = await response.json();
         setNotifications(data);
@@ -214,7 +245,7 @@ export default function AdminDashboard() {
 
   const fetchVendors = React.useCallback(async () => {
     try {
-      const response = await fetch('/api/vendors');
+      const response = await adminFetch('/api/vendors');
       const data = (await response.json()) as VendorDbItem[];
       
       const mappedVendors = data.map((v: VendorDbItem) => ({
@@ -304,7 +335,7 @@ export default function AdminDashboard() {
 
   const fetchOrders = React.useCallback(async () => {
     try {
-      const response = await fetch('/api/orders');
+      const response = await adminFetch('/api/orders');
       if (response.ok) {
         const data = await response.json();
         const mappedOrders = data.map((o: any) => ({
@@ -332,7 +363,7 @@ export default function AdminDashboard() {
 
   const fetchProducts = React.useCallback(async () => {
     try {
-      const response = await fetch('/api/products');
+      const response = await adminFetch('/api/products');
       if (response.ok) {
         const data = await response.json();
         setProducts(data);
@@ -460,7 +491,7 @@ export default function AdminDashboard() {
     if (!store) return;
     
     try {
-      await fetch('/api/vendors', {
+      await adminFetch('/api/vendors', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -487,7 +518,7 @@ export default function AdminDashboard() {
 
   const handleApproveProduct = async (id: string) => {
     try {
-      const response = await fetch('/api/products', {
+      const response = await adminFetch('/api/products', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, approvalStatus: 'APPROVED' }),
@@ -509,7 +540,7 @@ export default function AdminDashboard() {
 
   const handleRejectProduct = async (id: string, reason: string) => {
     try {
-      const response = await fetch('/api/products', {
+      const response = await adminFetch('/api/products', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, approvalStatus: 'REJECTED', rejectionReason: reason }),
@@ -534,7 +565,7 @@ export default function AdminDashboard() {
     if (!store) return;
     
     try {
-      await fetch('/api/vendors', {
+      await adminFetch('/api/vendors', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -567,7 +598,7 @@ export default function AdminDashboard() {
     const nextStatus = store.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
     
     try {
-      await fetch('/api/vendors', {
+      await adminFetch('/api/vendors', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -594,7 +625,7 @@ export default function AdminDashboard() {
 
   const handleDeleteVendor = async (id: string) => {
     try {
-      const response = await fetch(`/api/vendors?id=${encodeURIComponent(id)}`, {
+      const response = await adminFetch(`/api/vendors?id=${encodeURIComponent(id)}`, {
         method: 'DELETE'
       });
       const data = await response.json();
@@ -651,7 +682,7 @@ export default function AdminDashboard() {
 
   const handleApprovePayout = async (id: string) => {
     try {
-      const response = await fetch('/api/vendors', {
+      const response = await adminFetch('/api/vendors', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -680,7 +711,7 @@ export default function AdminDashboard() {
 
   const handlePayPayout = async (id: string) => {
     try {
-      const response = await fetch('/api/vendors', {
+      const response = await adminFetch('/api/vendors', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -709,7 +740,7 @@ export default function AdminDashboard() {
 
   const handleDeclinePayout = async (id: string) => {
     try {
-      const response = await fetch('/api/vendors', {
+      const response = await adminFetch('/api/vendors', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -740,7 +771,7 @@ export default function AdminDashboard() {
     if (orderId.startsWith('VLX-') || orderId.startsWith('#VLX-')) {
       try {
         const idToUpdate = orderId.startsWith('#') ? orderId.slice(1) : orderId;
-        const response = await fetch('/api/orders', {
+        const response = await adminFetch('/api/orders', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1170,7 +1201,7 @@ export default function AdminDashboard() {
                                   {!n.is_read && (
                                     <button
                                       onClick={async () => {
-                                        await fetch('/api/notifications', {
+                                        await adminFetch('/api/notifications', {
                                           method: 'PUT',
                                           headers: { 'Content-Type': 'application/json' },
                                           body: JSON.stringify({ id: n.id })

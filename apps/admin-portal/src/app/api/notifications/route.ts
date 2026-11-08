@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@villex/supabase';
+import { isAuthorizedAdmin, unauthorizedResponse } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isAuthorizedAdmin(request))) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { data: admin } = await supabaseAdmin
       .from('users')
@@ -25,11 +30,16 @@ export async function GET() {
 
     return NextResponse.json(notifications || []);
   } catch (err: any) {
+    console.error('Admin notifications GET error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
+  if (!(await isAuthorizedAdmin(request))) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { id, all } = await request.json();
 
@@ -59,6 +69,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
+    console.error('Admin notifications PUT error:', err);
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }

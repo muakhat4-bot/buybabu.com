@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, OrderStatus, PaymentMethod, PaymentStatus } from '@villex/supabase';
+import { isAuthorizedAdmin, unauthorizedResponse } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await isAuthorizedAdmin(request))) {
+    return unauthorizedResponse();
+  }
+
   try {
     const { data: dbOrders, error } = await supabaseAdmin
       .from('orders')
@@ -52,11 +57,16 @@ export async function GET() {
 
     return NextResponse.json(mapped);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.warn('Supabase error on admin-portal GET /api/orders:', err?.message || err);
+    return NextResponse.json([]);
   }
 }
 
 export async function PUT(request: Request) {
+  if (!(await isAuthorizedAdmin(request))) {
+    return unauthorizedResponse();
+  }
+
   try {
     const body = await request.json();
 

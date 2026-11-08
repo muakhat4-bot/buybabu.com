@@ -11,6 +11,13 @@
   "scripts": {
     "dev": "turbo run dev --filter=@villex/customer-marketplace --filter=@villex/vendor-portal --filter=@villex/admin-portal --filter=@villex/api-server --parallel",
     "build": "turbo run build",
+    "build:marketplace": "turbo run build --filter=@villex/customer-marketplace",
+    "build:vendor": "turbo run build --filter=@villex/vendor-portal",
+    "build:admin": "turbo run build --filter=@villex/admin-portal",
+    "start": "npm run start:marketplace",
+    "start:marketplace": "npm run start --workspace=@villex/customer-marketplace",
+    "start:vendor": "npm run start --workspace=@villex/vendor-portal",
+    "start:admin": "npm run start --workspace=@villex/admin-portal",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "clean": "turbo run clean && npx rimraf node_modules **/node_modules .turbo",

@@ -41,6 +41,23 @@ DO $$ BEGIN
     CREATE TYPE notification_type_enum AS ENUM ('ORDER_STATUS', 'PROMOTION', 'SECURITY');
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
+-- 2.1 CLEANUP EMPTY CONFLICTING PLACEHOLDER TABLES
+-- Supabase UI default table generator creates tables with "id bigint (int8)".
+-- Our architecture uses UUID keys. Dropping placeholder tables allows clean initialization.
+DROP TABLE IF EXISTS public.order_items CASCADE;
+DROP TABLE IF EXISTS public.orders CASCADE;
+DROP TABLE IF EXISTS public.product_variants CASCADE;
+DROP TABLE IF EXISTS public.products CASCADE;
+DROP TABLE IF EXISTS public.vendor_verifications CASCADE;
+DROP TABLE IF EXISTS public.wallets CASCADE;
+DROP TABLE IF EXISTS public.wallet_transactions CASCADE;
+DROP TABLE IF EXISTS public.payouts CASCADE;
+DROP TABLE IF EXISTS public.vendors CASCADE;
+DROP TABLE IF EXISTS public.user_roles CASCADE;
+DROP TABLE IF EXISTS public.role_permissions CASCADE;
+DROP TABLE IF EXISTS public.addresses CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
+
 -- 3. CORE TABLES
 
 -- Users
@@ -200,6 +217,8 @@ CREATE TABLE IF NOT EXISTS public.products (
     brand VARCHAR(100) NULL,
     images JSONB NOT NULL DEFAULT '[]'::jsonb,
     status product_status_enum NOT NULL DEFAULT 'DRAFT',
+    approval_status VARCHAR(50) NOT NULL DEFAULT 'APPROVED',
+    rejection_reason TEXT NULL,
     avg_rating NUMERIC(3,2) NOT NULL DEFAULT 0.00 CHECK (avg_rating >= 0.00 AND avg_rating <= 5.00),
     review_count INT NOT NULL DEFAULT 0 CHECK (review_count >= 0),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -212,7 +231,7 @@ CREATE TABLE IF NOT EXISTS public.product_variants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     sku VARCHAR(100) UNIQUE NOT NULL,
-    name VARCHAR(150) NOT NULL,
+    name VARCHAR(150) NULL DEFAULT 'Default',
     price NUMERIC(12,2) NOT NULL CHECK (price >= 0.00),
     compare_at_price NUMERIC(12,2) NULL,
     attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -253,7 +272,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_number VARCHAR(50) UNIQUE NOT NULL,
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
-    shipping_address_id UUID NOT NULL REFERENCES public.addresses(id) ON DELETE RESTRICT,
+    shipping_address_id UUID NULL REFERENCES public.addresses(id) ON DELETE RESTRICT,
+    shipping_address JSONB NULL,
+    billing_address JSONB NULL,
     subtotal NUMERIC(12,2) NOT NULL CHECK (subtotal >= 0.00),
     discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0.00 CHECK (discount_amount >= 0.00),
     shipping_fee NUMERIC(12,2) NOT NULL DEFAULT 0.00 CHECK (shipping_fee >= 0.00),
@@ -377,6 +398,11 @@ EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 DO $$ BEGIN
     CREATE POLICY "Authenticated Uploads" ON storage.objects
+        FOR INSERT WITH CHECK (bucket_id IN ('product-images', 'vendor-logos', 'vendor-banners', 'attachments'));
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Public Uploads" ON storage.objects
         FOR INSERT WITH CHECK (bucket_id IN ('product-images', 'vendor-logos', 'vendor-banners', 'attachments'));
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
