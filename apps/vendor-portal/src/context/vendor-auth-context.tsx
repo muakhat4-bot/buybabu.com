@@ -21,7 +21,8 @@ interface AuthContextType {
   logout: () => void;
 }
 
-const isUnconfigured = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder-project-id');
+const supabaseUrlConfig = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const isUnconfigured = !supabaseUrlConfig || supabaseUrlConfig.includes('placeholder-project-id');
 
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
 

@@ -30,7 +30,8 @@ interface CustomerAuthContextType {
 
 const CustomerAuthContext = React.createContext<CustomerAuthContextType | undefined>(undefined);
 
-const isUnconfigured = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder-project-id');
+const supabaseUrlConfig = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const isUnconfigured = !supabaseUrlConfig || supabaseUrlConfig.includes('placeholder-project-id');
 
 export function CustomerAuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);

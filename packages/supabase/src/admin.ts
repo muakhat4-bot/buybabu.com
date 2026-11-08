@@ -1,7 +1,11 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
-const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+const supabaseServiceKey = (
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SECRET_KEY ||
+  ''
+).trim();
 
 const rawClient = createClient(
   supabaseUrl || 'https://placeholder-project-id.supabase.co',
@@ -15,8 +19,12 @@ const rawClient = createClient(
 );
 
 function validateConfig() {
-  const currentUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
-  const currentKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const currentUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  const currentKey = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    ''
+  ).trim();
 
   if (!currentUrl || currentUrl.includes('placeholder-project-id')) {
     throw new Error('Supabase URL is not configured. Please set the NEXT_PUBLIC_SUPABASE_URL environment variable on Vercel/Locally.');
