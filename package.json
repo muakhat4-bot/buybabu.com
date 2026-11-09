@@ -14,7 +14,7 @@
     "build:marketplace": "turbo run build --filter=@villex/customer-marketplace",
     "build:vendor": "turbo run build --filter=@villex/vendor-portal",
     "build:admin": "turbo run build --filter=@villex/admin-portal",
-    "start": "npm run start:marketplace",
+    "start": "turbo run start --filter=@villex/customer-marketplace",
     "start:marketplace": "npm run start --workspace=@villex/customer-marketplace",
     "start:vendor": "npm run start --workspace=@villex/vendor-portal",
     "start:admin": "npm run start --workspace=@villex/admin-portal",
