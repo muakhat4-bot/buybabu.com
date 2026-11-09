@@ -33,13 +33,13 @@
   },
   "overrides": {
     "next": {
-      "postcss": "^8.5.18"
+      "postcss": "^8.5.32"
     },
-    "postcss": "^8.5.18",
+    "postcss": "^8.5.32",
     "multer": "^2.5.0",
     "zod": "^4.6.7",
-    "brace-expansion": "^1.1.20",
-    "tar": "^7.5.21",
+    "brace-expansion": "^1.1.21",
+    "tar": "^7.5.22",
     "handlebars": "^4.7.10",
     "proxy-addr": "^2.0.8",
     "body-parser": "^2.4.0",
