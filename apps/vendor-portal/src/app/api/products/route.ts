@@ -1,8 +1,56 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@villex/supabase';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+/**
+ * Checks if a given SKU is already used by a DIFFERENT product.
+ * Returns true if available (or if assigned to currentProductId being edited), false if in use by another product.
+ */
+async function isSkuAvailable(sku: string, currentProductId?: string): Promise<boolean> {
+  if (!sku || !sku.trim()) return true;
+  try {
+    const { data: existingVariant } = await supabaseAdmin
+      .from('product_variants')
+      .select('id, product_id')
+      .ilike('sku', sku.trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingVariant) return true;
+    if (currentProductId && existingVariant.product_id === currentProductId) {
+      return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Generates a guaranteed unique SKU for a product variant.
+ * Incorporates brand/name prefix and cryptographic hex entropy.
+ */
+async function generateUniqueSku(basePrefix: string = 'VLX', currentProductId?: string): Promise<string> {
+  const cleanPrefix = basePrefix
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 8) || 'VLX';
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const randomHex = randomBytes(3).toString('hex').toUpperCase(); // 6 hex chars (16.7 million combinations)
+    const candidateSku = `VLX-${cleanPrefix}-${randomHex}`;
+    const available = await isSkuAvailable(candidateSku, currentProductId);
+    if (available) {
+      return candidateSku;
+    }
+  }
+
+  // High-entropy fallback
+  return `VLX-${cleanPrefix}-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
+}
 
 function reconstructOptions(variants: any[]): any[] {
   const optionsMap: Record<string, Set<string>> = {};
@@ -454,28 +502,77 @@ export async function POST(request: Request) {
       await supabaseAdmin.from('product_variants').delete().eq('product_id', product.id);
     }
 
-    // 5. Insert variants and inventories with correct 'quantity' column
-    const defaultSku = body.sku || `SKU-${Date.now().toString().slice(-6)}`;
+    // 5. Determine and validate unique SKUs for variants
+    const rawSku = (body.sku || '').trim();
+    let defaultSku: string;
+
+    if (rawSku) {
+      const isAvailable = await isSkuAvailable(rawSku, product.id);
+      if (isAvailable) {
+        defaultSku = rawSku;
+      } else {
+        // If client-provided SKU was auto-generated (starts with VLX-), auto-disambiguate with a unique hex suffix
+        if (rawSku.toUpperCase().startsWith('VLX-')) {
+          defaultSku = await generateUniqueSku(rawSku.replace(/^VLX-/i, ''), product.id);
+        } else {
+          // If the vendor manually specified a custom SKU that conflicts with another product, return HTTP 400
+          return NextResponse.json(
+            { success: false, error: `The SKU "${rawSku}" is already in use by another product. Please specify a unique SKU.` },
+            { status: 400 }
+          );
+        }
+      }
+    } else {
+      defaultSku = await generateUniqueSku(body.name || 'PROD', product.id);
+    }
 
     if (body.variants && body.variants.length > 0) {
       for (const v of body.variants) {
         const variantId = randomUUID();
-        const { data: variant, error: varError } = await supabaseAdmin
-          .from('product_variants')
-          .insert({
-            id: variantId,
-            product_id: product.id,
-            sku: v.sku || `SKU-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6)}`,
-            price: Number(v.price || body.price || 0),
-            compare_at_price: body.oldPrice ? Number(body.oldPrice) : null,
-            attributes: { option: v.name },
-            is_active: v.active !== undefined ? v.active : true
-          })
-          .select()
-          .single();
+        let variantSku = (v.sku || '').trim();
+        if (!variantSku || !(await isSkuAvailable(variantSku, product.id))) {
+          variantSku = await generateUniqueSku(`${defaultSku}-${(v.name || 'OPT').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4)}`, product.id);
+        }
 
-        if (varError || !variant) {
-          throw new Error(`Failed to create product variant: ${varError?.message || 'Database error'}`);
+        let variant: any = null;
+        let insertErr: any = null;
+
+        // Attempt insert, with retry if race-condition collision occurs
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const { data, error } = await supabaseAdmin
+            .from('product_variants')
+            .insert({
+              id: variantId,
+              product_id: product.id,
+              sku: variantSku,
+              price: Number(v.price || body.price || 0),
+              compare_at_price: body.oldPrice ? Number(body.oldPrice) : null,
+              attributes: { option: v.name },
+              is_active: v.active !== undefined ? v.active : true
+            })
+            .select()
+            .single();
+
+          if (!error && data) {
+            variant = data;
+            break;
+          }
+
+          insertErr = error;
+          const isSkuConstraintViolation =
+            error?.message?.includes('product_varient_sku_key') ||
+            (error?.code === '23505' && (error?.message?.toLowerCase().includes('sku') || error?.details?.toLowerCase().includes('sku')));
+
+          if (isSkuConstraintViolation) {
+            variantSku = await generateUniqueSku(`${defaultSku}-${(v.name || 'OPT').slice(0, 3)}`, product.id);
+          } else {
+            // Unrelated database error: do not retry
+            break;
+          }
+        }
+
+        if (insertErr || !variant) {
+          throw new Error(`Failed to create product variant: ${insertErr?.message || 'Database error'}`);
         }
 
         const { error: invError } = await supabaseAdmin.from('inventories').insert({
@@ -491,22 +588,45 @@ export async function POST(request: Request) {
       }
     } else {
       const variantId = randomUUID();
-      const { data: variant, error: varError } = await supabaseAdmin
-        .from('product_variants')
-        .insert({
-          id: variantId,
-          product_id: product.id,
-          sku: defaultSku,
-          price: Number(body.price || 0),
-          compare_at_price: body.oldPrice ? Number(body.oldPrice) : null,
-          attributes: { default: true },
-          is_active: true
-        })
-        .select()
-        .single();
+      let variant: any = null;
+      let insertErr: any = null;
 
-      if (varError || !variant) {
-        throw new Error(`Failed to create default variant: ${varError?.message || 'Database error'}`);
+      // Attempt insert, with graceful retry on race-condition collision
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data, error } = await supabaseAdmin
+          .from('product_variants')
+          .insert({
+            id: variantId,
+            product_id: product.id,
+            sku: defaultSku,
+            price: Number(body.price || 0),
+            compare_at_price: body.oldPrice ? Number(body.oldPrice) : null,
+            attributes: { default: true },
+            is_active: true
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          variant = data;
+          break;
+        }
+
+        insertErr = error;
+        const isSkuConstraintViolation =
+          error?.message?.includes('product_varient_sku_key') ||
+          (error?.code === '23505' && (error?.message?.toLowerCase().includes('sku') || error?.details?.toLowerCase().includes('sku')));
+
+        if (isSkuConstraintViolation) {
+          defaultSku = await generateUniqueSku(body.name || 'PROD', product.id);
+        } else {
+          // Unrelated database error: do not retry
+          break;
+        }
+      }
+
+      if (insertErr || !variant) {
+        throw new Error(`Failed to create default variant: ${insertErr?.message || 'Database error'}`);
       }
 
       const { error: invError } = await supabaseAdmin.from('inventories').insert({
@@ -525,7 +645,7 @@ export async function POST(request: Request) {
     const computedStock = Number(body.stock || 0);
     const mappedResponseProduct = {
       id: product.id,
-      sku: body.sku || defaultSku,
+      sku: defaultSku,
       name: product.name,
       category: category ? category.name.toLowerCase() : (body.category || '').toLowerCase(),
       price: Number(body.price || 0),

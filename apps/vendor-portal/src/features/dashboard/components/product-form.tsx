@@ -314,7 +314,7 @@ export function ProductForm({ initialData, onSave, onCancel, isSubmitting = fals
       ? variants.filter(v => v.active).reduce((sum, v) => sum + (v.stock || 0), 0)
       : stock;
 
-    const generatedSku = sku || ('VLX-' + name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 8));
+    const generatedSku = sku || ('VLX-' + name.trim().toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 8) + '-' + Math.random().toString(36).substring(2, 6).toUpperCase());
 
     onSave({
       id: initialData?.id,
