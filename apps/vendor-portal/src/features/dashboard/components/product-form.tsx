@@ -68,9 +68,10 @@ interface ProductFormProps {
   initialData?: ProductFormData;
   onSave: (data: ProductFormData) => void;
   onCancel: () => void;
+  isSubmitting?: boolean;
 }
 
-export function ProductForm({ initialData, onSave, onCancel }: ProductFormProps) {
+export function ProductForm({ initialData, onSave, onCancel, isSubmitting = false }: ProductFormProps) {
   const isEditMode = !!initialData;
 
   // Form states
@@ -355,7 +356,8 @@ export function ProductForm({ initialData, onSave, onCancel }: ProductFormProps)
               type="button"
               variant="outline"
               onClick={onCancel}
-              className="text-[10px] font-black uppercase tracking-wider h-9 px-4 rounded-xl border-border"
+              disabled={isSubmitting}
+              className="text-[10px] font-black uppercase tracking-wider h-9 px-4 rounded-xl border-border disabled:opacity-50"
             >
               Cancel
             </Button>
@@ -366,10 +368,20 @@ export function ProductForm({ initialData, onSave, onCancel }: ProductFormProps)
                 e.preventDefault();
                 processSubmit();
               }}
-              disabled={!name.trim()}
-              className="text-[10px] font-black uppercase tracking-wider h-9 px-5 rounded-xl"
+              disabled={!name.trim() || isSubmitting}
+              className="text-[10px] font-black uppercase tracking-wider h-9 px-5 rounded-xl disabled:opacity-50 flex items-center space-x-1.5"
             >
-              {isEditMode ? 'Save Product' : 'Publish Product'}
+              {isSubmitting && (
+                <svg className="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              <span>
+                {isSubmitting
+                  ? (isEditMode ? 'Saving...' : 'Submitting...')
+                  : (isEditMode ? 'Save Product' : 'Publish Product')}
+              </span>
             </Button>
           </div>
         </div>

@@ -204,6 +204,7 @@ export default function Home() {
   // Sub-view routing inside the Inventory tab
   const [inventorySubView, setInventorySubView] = React.useState<'list' | 'create' | 'edit'>('list');
   const [editingProductId, setEditingProductId] = React.useState<string | null>(null);
+  const [isSubmittingProduct, setIsSubmittingProduct] = React.useState<boolean>(false);
 
   // shipping modal trigger state
   const [shippingOrderId, setShippingOrderId] = React.useState<string | null>(null);
@@ -308,10 +309,12 @@ export default function Home() {
         return null;
       });
       if (response && response.ok) {
-        const data = await response.json().catch(() => []);
+        const data = await response.json().catch(() => null);
         if (Array.isArray(data)) {
           setProducts(data);
         }
+      } else {
+        console.warn('fetchProducts returned non-OK status:', response?.status);
       }
     } catch (err) {
       console.warn('Failed to fetch vendor products:', err);
@@ -900,38 +903,41 @@ export default function Home() {
 
   // Save or update product inside form view
   const handleSaveProduct = async (formData: ProductFormData) => {
+    setIsSubmittingProduct(true);
     try {
       const currentStoreId = authStore?.id || storeId || '#VLX-MER-089';
       const currentStoreName = authStore?.storeName || storeName || 'ElectroPulse Store';
+      const savedToken = typeof window !== 'undefined' ? localStorage.getItem('villex_vendor_token') : null;
 
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(savedToken ? { Authorization: `Bearer ${savedToken}` } : {}),
         },
         body: JSON.stringify({
           ...formData,
           storeId: currentStoreId,
           storeName: currentStoreName,
+          vendorEmail: vendorEmail,
         }),
       });
 
       const resData = await response.json().catch(() => ({}));
 
-      if (response.ok && resData.success !== false) {
-        if (resData.product) {
-          setProducts((prev) => {
-            const idx = prev.findIndex((p) => p.id === resData.product.id);
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = resData.product;
-              return next;
-            }
-            return [resData.product, ...prev];
-          });
-        }
+      if (response.ok && resData.success !== false && resData.product) {
+        setProducts((prev) => {
+          const idx = prev.findIndex((p) => p.id === resData.product.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = resData.product;
+            return next;
+          }
+          return [resData.product, ...prev];
+        });
 
-        await fetchProducts();
+        // Safely refetch products in background
+        fetchProducts();
 
         const isEdit = !!formData.id;
         const newAlert: AlertNotification = {
@@ -940,15 +946,23 @@ export default function Home() {
           severity: 'SUCCESS',
           message: isEdit
             ? `Product "${formData.name}" has been successfully updated.`
-            : `New product "${formData.name}" has been published to the marketplace.`,
+            : `Product "${formData.name}" submitted successfully! Awaiting Super Admin approval before going live.`,
           timestamp: 'Just now',
           read: false,
         };
         setNotifications((prev) => [newAlert, ...prev]);
+
+        alert(
+          isEdit
+            ? `Product "${formData.name}" updated successfully!`
+            : `Product "${formData.name}" submitted successfully!\n\nYour product is currently PENDING review. Once approved by the Super Admin, it will automatically appear live on BuyBabu.`
+        );
+
+        // ONLY on verified success: switch view to list
         setInventorySubView('list');
         setEditingProductId(null);
       } else {
-        const errorMsg = resData.error || 'Failed to save product via API';
+        const errorMsg = resData.error || `Server responded with status ${response.status}`;
         console.error('Failed to save product via API:', errorMsg);
         const errorAlert: AlertNotification = {
           id: Date.now().toString(),
@@ -959,11 +973,15 @@ export default function Home() {
           read: false,
         };
         setNotifications((prev) => [errorAlert, ...prev]);
-        alert(`Failed to publish product: ${errorMsg}`);
+        alert(`Failed to publish product:\n${errorMsg}\n\nYour entered details have been preserved. Please check the values and try again.`);
+        // NOTE: setInventorySubView is intentionally NOT called so the form stays open with all inputs intact
       }
     } catch (err: any) {
       console.error('Network error saving product:', err);
-      alert(`Network error saving product: ${err?.message || 'Unknown error'}`);
+      const networkMsg = err?.message || 'Network communication error';
+      alert(`Network error saving product: ${networkMsg}\n\nYour entered details have been preserved. Please try again.`);
+    } finally {
+      setIsSubmittingProduct(false);
     }
   };
 
@@ -1675,6 +1693,7 @@ export default function Home() {
                       ? (products.find((p) => p.id === editingProductId) as unknown as ProductFormData)
                       : undefined
                   }
+                  isSubmitting={isSubmittingProduct}
                   onSave={handleSaveProduct}
                   onCancel={() => {
                     setInventorySubView('list');
