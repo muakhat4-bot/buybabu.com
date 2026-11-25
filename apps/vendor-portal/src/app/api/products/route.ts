@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, VendorStatus } from '@villex/supabase';
+import { supabaseAdmin } from '@villex/supabase';
 import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -30,10 +30,108 @@ function reconstructOptions(variants: any[]): any[] {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const isValidUuid = (id: string) => UUID_REGEX.test(id);
 
+interface AuthSuccess {
+  vendor: any;
+  user: any;
+}
+
+interface AuthError {
+  errorResponse: NextResponse;
+}
+
+type AuthResult = AuthSuccess | AuthError;
+
+/**
+ * Strict authentication helper:
+ * - Requires a valid Supabase JWT in the Authorization header.
+ * - Verifies the token using supabaseAdmin.auth.getUser(token).
+ * - Rejects missing, invalid, or expired tokens with HTTP 401.
+ * - Resolves the vendor record EXCLUSIVELY via vendors.owner_id = user.id.
+ * - Never trusts client-supplied storeId, storeName, or vendorEmail.
+ * - Never falls back to arbitrary or auto-created vendors.
+ * - Rejects authenticated users without a vendor store record with HTTP 403.
+ */
+async function authenticateVendor(request: Request): Promise<AuthResult> {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return {
+      errorResponse: NextResponse.json(
+        { success: false, error: 'Unauthorized: Missing or malformed Authorization header' },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) {
+    return {
+      errorResponse: NextResponse.json(
+        { success: false, error: 'Unauthorized: Bearer token is empty' },
+        { status: 401 }
+      ),
+    };
+  }
+
+  try {
+    const { data: userData, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !userData?.user) {
+      return {
+        errorResponse: NextResponse.json(
+          { success: false, error: `Unauthorized: Invalid or expired token (${authError?.message || 'Authentication failed'})` },
+          { status: 401 }
+        ),
+      };
+    }
+
+    const user = userData.user;
+
+    // Resolve vendor strictly through verified user id -> vendors.owner_id
+    const { data: vendor, error: vendorError } = await supabaseAdmin
+      .from('vendors')
+      .select('*')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+
+    if (vendorError) {
+      console.error('Database error resolving vendor by owner_id:', vendorError);
+      return {
+        errorResponse: NextResponse.json(
+          { success: false, error: 'Internal server error resolving vendor account' },
+          { status: 500 }
+        ),
+      };
+    }
+
+    if (!vendor) {
+      return {
+        errorResponse: NextResponse.json(
+          { success: false, error: 'Forbidden: No registered vendor profile associated with this account' },
+          { status: 403 }
+        ),
+      };
+    }
+
+    return { vendor, user };
+  } catch (err: any) {
+    console.error('Unexpected auth verification exception:', err);
+    return {
+      errorResponse: NextResponse.json(
+        { success: false, error: 'Unauthorized: Authentication service error' },
+        { status: 401 }
+      ),
+    };
+  }
+}
+
 export async function GET(request: Request) {
+  const auth = await authenticateVendor(request);
+  if ('errorResponse' in auth) {
+    return auth.errorResponse;
+  }
+  const vendor = auth.vendor;
+
   try {
     const { searchParams } = new URL(request.url);
-    const storeId = searchParams.get('storeId');
     const category = searchParams.get('category');
     const q = searchParams.get('q');
     const id = searchParams.get('id');
@@ -41,28 +139,14 @@ export async function GET(request: Request) {
     let mappedProducts: any[] = [];
 
     try {
+      // Strictly isolate products to the authenticated vendor
       let query = supabaseAdmin
         .from('products')
-        .select('*, vendors(*), categories(*), product_variants(*)');
+        .select('*, vendors(*), categories(*), product_variants(*)')
+        .eq('vendor_id', vendor.id);
 
       if (id) {
         query = query.eq('id', id);
-      }
-
-      if (storeId) {
-        const cleanStoreId = storeId.replace('#', '').toLowerCase().trim();
-        let vQuery = supabaseAdmin.from('vendors').select('id');
-        if (isValidUuid(storeId)) {
-          vQuery = vQuery.or(`id.eq."${storeId}",store_name.ilike."${storeId}",store_slug.ilike."${cleanStoreId}"`);
-        } else {
-          vQuery = vQuery.or(`store_name.ilike."${storeId}",store_slug.ilike."${cleanStoreId}"`);
-        }
-
-        const { data: v } = await vQuery.maybeSingle();
-
-        if (v) {
-          query = query.eq('vendor_id', v.id);
-        }
       }
 
       if (category) {
@@ -124,7 +208,7 @@ export async function GET(request: Request) {
         }
 
         mappedProducts = dbProducts.map(p => {
-          const vendor = p.vendors;
+          const vData = p.vendors;
           const categoryObj = p.categories;
           const variants = p.product_variants || [];
           const defaultVariant = variants[0];
@@ -160,8 +244,8 @@ export async function GET(request: Request) {
             images,
             gallery,
             specs: (p.specifications as any) || {},
-            storeId: vendor?.store_slug || vendor?.id || '',
-            storeName: vendor?.store_name || '',
+            storeId: vData?.store_slug || vData?.id || '',
+            storeName: vData?.store_name || '',
             status: p.status || 'DRAFT',
             approvalStatus: p.approval_status || 'PENDING',
             rejectionReason: p.rejection_reason || undefined,
@@ -181,58 +265,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch products: ' + (dbErr?.message || 'Server error') }, { status: 500 });
     }
 
-    let combined = [...mappedProducts];
-
-    // Apply storeId filtering
-    if (storeId) {
-      const cleanStoreId = storeId.replace('#', '').toLowerCase().trim();
-      combined = combined.filter((p: any) => {
-        if (!p.storeId && !p.storeName) return true;
-        const pStoreId = (p.storeId || '').replace('#', '').toLowerCase().trim();
-        const pStoreName = (p.storeName || '').toLowerCase().trim();
-        return (
-          pStoreId === cleanStoreId ||
-          pStoreName === cleanStoreId ||
-          pStoreName.includes(cleanStoreId) ||
-          cleanStoreId.includes(pStoreName) ||
-          cleanStoreId.includes('089') ||
-          pStoreId.includes('089')
-        );
-      });
-    }
-
-    // Apply category filtering
-    if (category) {
-      const catLower = category.toLowerCase().trim();
-      combined = combined.filter((p: any) => (p.category || '').toLowerCase().includes(catLower));
-    }
-
-    // Apply query search filtering
-    if (q) {
-      const qLower = q.toLowerCase().trim();
-      combined = combined.filter((p: any) =>
-        (p.name || '').toLowerCase().includes(qLower) ||
-        (p.sku || '').toLowerCase().includes(qLower) ||
-        (p.description || '').toLowerCase().includes(qLower)
-      );
-    }
-
-    // Apply single ID filtering
     if (id) {
-      const matched = combined.find((p: any) => p.id === id);
+      const matched = mappedProducts.find((p: any) => p.id === id);
       if (!matched) {
         return NextResponse.json({ error: 'Product not found' }, { status: 404 });
       }
       return NextResponse.json(matched);
     }
 
-    return NextResponse.json(combined);
+    return NextResponse.json(mappedProducts);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
+  const auth = await authenticateVendor(request);
+  if ('errorResponse' in auth) {
+    return auth.errorResponse;
+  }
+  const vendor = auth.vendor;
+
   let createdProductId: string | null = null;
   let isNewProduct = false;
 
@@ -243,88 +296,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Product name is required' }, { status: 400 });
     }
 
-    // 1. Resolve vendor with server-side verification
-    let vendor = null;
-
-    // Check Authorization header for verified session token
-    const authHeader = request.headers.get('authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.replace('Bearer ', '').trim();
-      if (token) {
-        try {
-          const { data: userData } = await supabaseAdmin.auth.getUser(token);
-          if (userData?.user?.id) {
-            const { data: vByOwner } = await supabaseAdmin
-              .from('vendors')
-              .select('*')
-              .eq('owner_id', userData.user.id)
-              .maybeSingle();
-            if (vByOwner) {
-              vendor = vByOwner;
-            }
-          }
-        } catch (authErr) {
-          console.warn('Bearer token verification failed in products POST:', authErr);
-        }
-      }
-    }
-
-    // Check by authenticated vendor email if supplied
-    if (!vendor && body.vendorEmail) {
-      const { data: vByEmail } = await supabaseAdmin
-        .from('vendors')
-        .select('*')
-        .eq('support_email', body.vendorEmail.trim().toLowerCase())
-        .maybeSingle();
-      if (vByEmail) {
-        vendor = vByEmail;
-      }
-    }
-
-    // Fallback resolution by storeId / storeName
-    if (!vendor && (body.storeId || body.storeName)) {
-      const cleanStoreId = (body.storeId || '').replace('#', '').toLowerCase().trim();
-      let vQuery = supabaseAdmin.from('vendors').select('*');
-      vQuery = vQuery.or(`store_name.ilike."${body.storeName || ''}",store_slug.ilike."${cleanStoreId}"`);
-
-      if (body.storeId && isValidUuid(body.storeId)) {
-        vQuery = supabaseAdmin.from('vendors').select('*').or(`id.eq."${body.storeId}",store_name.ilike."${body.storeName || ''}"`);
-      }
-
-      const { data: v } = await vQuery.maybeSingle();
-      vendor = v;
-    }
-
-    if (!vendor) {
-      const { data: fallbackVendors } = await supabaseAdmin.from('vendors').select('*').limit(1);
-      vendor = fallbackVendors?.[0];
-    }
-
-    if (!vendor) {
-      const storeName = body.storeName || 'Nova Goods';
-      const storeSlug = storeName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-
-      const { data: newVendor, error: vendorCreateErr } = await supabaseAdmin
-        .from('vendors')
-        .insert({
-          id: randomUUID(),
-          store_name: storeName,
-          store_slug: storeSlug,
-          support_email: body.vendorEmail || 'vendor@villex.com',
-          support_phone: '',
-          status: VendorStatus.ACTIVE,
-          commission_rate: 10.00
-        })
-        .select()
-        .single();
-
-      if (vendorCreateErr || !newVendor) {
-        throw new Error(`Failed to initialize vendor profile: ${vendorCreateErr?.message || 'Unknown error'}`);
-      }
-      vendor = newVendor;
-    }
-
-    // 2. Find or auto-create Category
+    // 1. Find or auto-create Category
     const catName = (body.category || 'smart gadgets').trim().toLowerCase();
     const catSlug = catName.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
@@ -350,28 +322,37 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Prepare images and slug
+    // 2. Prepare images and slug
     const images = Array.isArray(body.images) ? body.images : [];
     const imageMain = images[0] || 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=500&auto=format&fit=crop&q=80';
     const baseSlug = body.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const slug = `${baseSlug}-${Date.now().toString().slice(-6)}`;
 
-    // 4. Determine if updating existing product or inserting new product
+    // 3. Determine if updating existing product or inserting new product
     let product = null;
     if (body.id && isValidUuid(body.id)) {
-      const { data: existingP } = await supabaseAdmin
+      const { data: existingP, error: findError } = await supabaseAdmin
         .from('products')
         .select('*')
         .eq('id', body.id)
         .maybeSingle();
+
+      if (findError) {
+        throw new Error(`Database error looking up product: ${findError.message}`);
+      }
+
       product = existingP;
+
+      if (!product) {
+        return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 });
+      }
     }
 
     if (product) {
-      // Server-side ownership verification: verify vendor owns this product
+      // STRICT OWNERSHIP CHECK: verify product belongs to authenticated vendor
       if (product.vendor_id !== vendor.id) {
         return NextResponse.json(
-          { success: false, error: 'Unauthorized: You do not have permission to modify this product.' },
+          { success: false, error: 'Forbidden: You do not have permission to modify this product' },
           { status: 403 }
         );
       }
@@ -399,7 +380,7 @@ export async function POST(request: Request) {
       }
       product = updatedProduct;
     } else {
-      // Check for rapid duplicate submission by the same vendor
+      // Check for rapid duplicate submission by the same vendor (within 10 seconds)
       const { data: duplicateProduct } = await supabaseAdmin
         .from('products')
         .select('id, created_at')
@@ -420,13 +401,13 @@ export async function POST(request: Request) {
         }
       }
 
-      // New product insert: Must be DRAFT and PENDING approval
+      // New product insert: vendor_id derived EXCLUSIVELY from authenticated vendor.id
       isNewProduct = true;
-      const newProductId = body.id && isValidUuid(body.id) ? body.id : randomUUID();
+      const newProductId = randomUUID();
 
       const insertData = {
         id: newProductId,
-        vendor_id: vendor.id,
+        vendor_id: vendor.id, // Strictly authenticated vendor ID; client-supplied IDs are completely ignored
         category_id: category?.id,
         name: body.name.trim(),
         slug,
@@ -454,7 +435,7 @@ export async function POST(request: Request) {
       createdProductId = newProduct.id;
     }
 
-    // 5. Clean up previous variants and inventories before re-inserting
+    // 4. Clean up previous variants and inventories before re-inserting
     const { data: oldVariants } = await supabaseAdmin
       .from('product_variants')
       .select('id')
@@ -466,7 +447,7 @@ export async function POST(request: Request) {
       await supabaseAdmin.from('product_variants').delete().eq('product_id', product.id);
     }
 
-    // 6. Insert variants and inventories with correct 'quantity' column
+    // 5. Insert variants and inventories with correct 'quantity' column
     const defaultSku = body.sku || `SKU-${Date.now().toString().slice(-6)}`;
 
     if (body.variants && body.variants.length > 0) {
@@ -533,7 +514,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 7. Construct mapped product response matching GET schema
+    // 6. Construct mapped product response matching GET schema
     const computedStock = Number(body.stock || 0);
     const mappedResponseProduct = {
       id: product.id,
@@ -617,40 +598,81 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const auth = await authenticateVendor(request);
+  if ('errorResponse' in auth) {
+    return auth.errorResponse;
+  }
+  const vendor = auth.vendor;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) {
-      return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
+    if (!id || !isValidUuid(id)) {
+      return NextResponse.json({ success: false, error: 'Valid Product UUID is required' }, { status: 400 });
     }
 
-    if (isValidUuid(id)) {
-      const { data: variants } = await supabaseAdmin
+    // 1. Fetch target product to verify existence and ownership
+    const { data: targetProduct, error: findError } = await supabaseAdmin
+      .from('products')
+      .select('id, vendor_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (findError) {
+      return NextResponse.json({ success: false, error: `Database error: ${findError.message}` }, { status: 500 });
+    }
+
+    if (!targetProduct) {
+      return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 });
+    }
+
+    // 2. Verify ownership: product.vendor_id MUST match authenticated vendor.id
+    if (targetProduct.vendor_id !== vendor.id) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: You do not have permission to delete this product' },
+        { status: 403 }
+      );
+    }
+
+    // 3. Clean up associated inventories and variants
+    const { data: variants, error: varError } = await supabaseAdmin
+      .from('product_variants')
+      .select('id')
+      .eq('product_id', id);
+
+    if (varError) {
+      return NextResponse.json({ success: false, error: `Error fetching variants: ${varError.message}` }, { status: 500 });
+    }
+
+    if (variants && variants.length > 0) {
+      const { error: invDelErr } = await supabaseAdmin
+        .from('inventories')
+        .delete()
+        .in('variant_id', variants.map((v) => v.id));
+
+      if (invDelErr) {
+        return NextResponse.json({ success: false, error: `Error deleting inventory records: ${invDelErr.message}` }, { status: 500 });
+      }
+
+      const { error: varDelErr } = await supabaseAdmin
         .from('product_variants')
-        .select('id')
+        .delete()
         .eq('product_id', id);
 
-      if (variants && variants.length > 0) {
-        await supabaseAdmin
-          .from('inventories')
-          .delete()
-          .in('variant_id', variants.map((v) => v.id));
-
-        await supabaseAdmin
-          .from('product_variants')
-          .delete()
-          .eq('product_id', id);
+      if (varDelErr) {
+        return NextResponse.json({ success: false, error: `Error deleting product variants: ${varDelErr.message}` }, { status: 500 });
       }
+    }
 
-      const { error: delError } = await supabaseAdmin
-        .from('products')
-        .delete()
-        .eq('id', id);
+    // 4. Delete product record
+    const { error: delError } = await supabaseAdmin
+      .from('products')
+      .delete()
+      .eq('id', id);
 
-      if (delError) {
-        return NextResponse.json({ success: false, error: delError.message }, { status: 500 });
-      }
+    if (delError) {
+      return NextResponse.json({ success: false, error: delError.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

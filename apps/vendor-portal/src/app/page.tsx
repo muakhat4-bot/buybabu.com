@@ -303,8 +303,13 @@ export default function Home() {
 
   const fetchProducts = React.useCallback(async () => {
     const queryStoreId = authStore?.id || storeId || '#VLX-MER-089';
+    const savedToken = typeof window !== 'undefined' ? localStorage.getItem('villex_vendor_token') : null;
     try {
-      const response = await fetch(`/api/products?storeId=${encodeURIComponent(queryStoreId)}`).catch((err) => {
+      const response = await fetch(`/api/products?storeId=${encodeURIComponent(queryStoreId)}`, {
+        headers: {
+          ...(savedToken ? { Authorization: `Bearer ${savedToken}` } : {}),
+        },
+      }).catch((err) => {
         console.warn('fetchProducts network error:', err);
         return null;
       });
@@ -873,8 +878,12 @@ export default function Home() {
   // Callback to delete a product
   const handleDeleteProduct = async (productId: string) => {
     try {
+      const savedToken = typeof window !== 'undefined' ? localStorage.getItem('villex_vendor_token') : null;
       const response = await fetch(`/api/products?id=${encodeURIComponent(productId)}`, {
         method: 'DELETE',
+        headers: {
+          ...(savedToken ? { Authorization: `Bearer ${savedToken}` } : {}),
+        },
       });
 
       if (response.ok) {
@@ -894,7 +903,9 @@ export default function Home() {
         };
         setNotifications((prev) => [newAlert, ...prev]);
       } else {
-        console.error('Failed to delete product via API');
+        const errData = await response.json().catch(() => ({}));
+        alert(`Failed to delete product: ${errData.error || response.statusText}`);
+        console.error('Failed to delete product via API:', errData);
       }
     } catch (err) {
       console.error('Network error deleting product:', err);
