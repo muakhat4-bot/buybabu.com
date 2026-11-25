@@ -4,39 +4,161 @@ import { randomUUID } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isValidUuid = (id: string) => UUID_REGEX.test(id);
+
+interface AuthSuccess {
+  vendor: any;
+  user: any;
+}
+
+interface AuthError {
+  errorResponse: NextResponse;
+}
+
+type AuthResult = AuthSuccess | AuthError;
+
+/**
+ * Strict authentication helper for Vendor API:
+ * - Requires a valid Supabase JWT in the Authorization header.
+ * - Verifies the token using supabaseAdmin.auth.getUser(token).
+ * - Rejects missing, invalid, or expired tokens with HTTP 401.
+ * - Resolves the vendor record EXCLUSIVELY via vendors.owner_id = user.id.
+ * - Never trusts client-supplied email, storeId, or id query parameters.
+ * - Rejects authenticated users without a vendor store record with HTTP 403.
+ */
+async function authenticateVendor(request: Request): Promise<AuthResult> {
+  const authHeader =
+    request.headers.get('authorization') ||
+    request.headers.get('x-forwarded-authorization') ||
+    request.headers.get('x-vendor-token') ||
+    request.headers.get('x-supabase-auth');
+
+  if (!authHeader || !authHeader.trim()) {
+    return {
+      errorResponse: NextResponse.json(
+        { success: false, error: 'Unauthorized: Missing or malformed Authorization header' },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) {
+    return {
+      errorResponse: NextResponse.json(
+        { success: false, error: 'Unauthorized: Bearer token is empty' },
+        { status: 401 }
+      ),
+    };
+  }
+
   try {
-    const { data: vendors, error } = await supabaseAdmin
-      .from('vendors')
-      .select('*, users(*), vendor_verifications(*)');
-
-    if (error) throw error;
-
-    const mapped = (vendors || []).map(v => {
-      const verifications = v.vendor_verifications || [];
-      const latestVerification = verifications[0];
-      const user = v.users;
-
+    const { data: userData, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !userData?.user) {
       return {
-        email: v.support_email,
-        storeName: v.store_name,
-        storeId: v.id,
-        firstName: user ? user.first_name : '',
-        lastName: user ? user.last_name : '',
-        phone: v.support_phone,
-        status: v.status,
-        joinedDate: new Date(v.created_at).toISOString().split('T')[0],
-        verificationStatus: latestVerification?.verified_at ? 'APPROVED' : (v.status === 'REJECTED' ? 'REJECTED' : 'PENDING'),
-        legalName: latestVerification?.legal_name || null,
-        ntnNumber: latestVerification?.tax_id || null,
-        wallet: v.wallet || { availableBalance: 0, pendingBalance: 0, lifetimeSales: 0, lifetimeCommission: 0, transactions: [] }
+        errorResponse: NextResponse.json(
+          { success: false, error: `Unauthorized: Invalid or expired token (${authError?.message || 'Authentication failed'})` },
+          { status: 401 }
+        ),
       };
-    });
+    }
 
-    return NextResponse.json(mapped);
+    const user = userData.user;
+    if (!user.id || !isValidUuid(user.id)) {
+      return {
+        errorResponse: NextResponse.json(
+          { success: false, error: 'Unauthorized: Invalid user identifier' },
+          { status: 401 }
+        ),
+      };
+    }
+
+    // Resolve vendor strictly through verified user id -> vendors.owner_id
+    const { data: vendor, error: vendorError } = await supabaseAdmin
+      .from('vendors')
+      .select('*')
+      .eq('owner_id', user.id)
+      .maybeSingle();
+
+    if (vendorError) {
+      console.error('Database error resolving vendor by owner_id:', vendorError);
+      return {
+        errorResponse: NextResponse.json(
+          { success: false, error: 'Internal server error resolving vendor account' },
+          { status: 500 }
+        ),
+      };
+    }
+
+    if (!vendor) {
+      return {
+        errorResponse: NextResponse.json(
+          { success: false, error: 'Forbidden: No registered vendor profile associated with this account' },
+          { status: 403 }
+        ),
+      };
+    }
+
+    return { vendor, user };
   } catch (err: any) {
-    console.warn("Supabase error on vendor-portal GET /api/vendors:", err?.message || err);
-    return NextResponse.json([]);
+    console.error('Unexpected auth verification exception:', err);
+    return {
+      errorResponse: NextResponse.json(
+        { success: false, error: 'Unauthorized: Authentication service error' },
+        { status: 401 }
+      ),
+    };
+  }
+}
+
+export async function GET(request: Request) {
+  const auth = await authenticateVendor(request);
+  if ('errorResponse' in auth) {
+    return auth.errorResponse;
+  }
+  const vendor = auth.vendor;
+
+  try {
+    // Fetch verification status if present, without exposing tax/NTN or legal registration documents
+    const { data: verifications } = await supabaseAdmin
+      .from('vendor_verifications')
+      .select('verified_at')
+      .eq('vendor_id', vendor.id)
+      .limit(1);
+
+    const latestVerification = verifications && verifications[0];
+
+    // Return only the fields needed by the vendor portal.
+    // Do NOT expose unnecessary tax, legal, or unneeded private information (e.g. tax_id/ntnNumber).
+    const safeVendor = {
+      storeId: vendor.id,
+      storeName: vendor.store_name,
+      email: vendor.support_email,
+      phone: vendor.support_phone,
+      status: vendor.status,
+      joinedDate: vendor.created_at ? new Date(vendor.created_at).toISOString().split('T')[0] : '',
+      verificationStatus: latestVerification?.verified_at
+        ? 'APPROVED'
+        : vendor.status === 'REJECTED'
+        ? 'REJECTED'
+        : 'PENDING',
+      wallet: vendor.wallet || {
+        availableBalance: 0,
+        pendingBalance: 0,
+        lifetimeSales: 0,
+        lifetimeCommission: 0,
+        transactions: [],
+      },
+      bankName: vendor.bank_details?.bankName || null,
+      bankAccountTitle: vendor.bank_details?.accountTitle || null,
+      bankAccountNumber: vendor.bank_details?.accountNumber || null,
+    };
+
+    return NextResponse.json([safeVendor]);
+  } catch (err: any) {
+    console.warn('Supabase error on vendor-portal GET /api/vendors:', err?.message || err);
+    return NextResponse.json({ success: false, error: 'Failed to retrieve vendor profile' }, { status: 500 });
   }
 }
 

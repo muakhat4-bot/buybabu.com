@@ -52,8 +52,14 @@ type AuthResult = AuthSuccess | AuthError;
  * - Rejects authenticated users without a vendor store record with HTTP 403.
  */
 async function authenticateVendor(request: Request): Promise<AuthResult> {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // Support standard Authorization header and common reverse-proxy headers (e.g. Apache/LiteSpeed on Hostinger)
+  const authHeader =
+    request.headers.get('authorization') ||
+    request.headers.get('x-forwarded-authorization') ||
+    request.headers.get('x-vendor-token') ||
+    request.headers.get('x-supabase-auth');
+
+  if (!authHeader || !authHeader.trim()) {
     return {
       errorResponse: NextResponse.json(
         { success: false, error: 'Unauthorized: Missing or malformed Authorization header' },
@@ -62,6 +68,7 @@ async function authenticateVendor(request: Request): Promise<AuthResult> {
     };
   }
 
+  // Handle both "Bearer <token>" and raw token header formats
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!token) {
     return {

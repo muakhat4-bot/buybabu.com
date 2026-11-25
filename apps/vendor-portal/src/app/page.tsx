@@ -164,7 +164,7 @@ const INITIAL_MOCK_NOTIFICATIONS: AlertNotification[] = [
 ];
 
 export default function Home() {
-  const { isLoggedIn: authIsLoggedIn, user: authUser, store: authStore, login: authLogin, logout: authLogout, isLoading: authIsLoading } = useAuth();
+  const { isLoggedIn: authIsLoggedIn, user: authUser, store: authStore, login: authLogin, logout: authLogout, isLoading: authIsLoading, getValidToken } = useAuth();
 
   React.useEffect(() => {
     // Suppress unused variables check
@@ -246,14 +246,45 @@ export default function Home() {
   const fetchWallet = React.useCallback(async () => {
     if (!authUser?.email) return;
     try {
-      const response = await fetch('/api/vendors').catch((err) => {
+      const currentToken = await getValidToken();
+      if (!currentToken) {
+        console.warn('fetchWallet skipped: No valid authentication token available.');
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      let response = await fetch('/api/vendors', {
+        headers: {
+          'Authorization': `Bearer ${currentToken}`
+        },
+        signal: controller.signal
+      }).catch((err) => {
         console.warn('fetchWallet network error:', err);
         return null;
       });
+      clearTimeout(timeoutId);
+
+      // If token expired, attempt one safe refresh and retry
+      if (response && response.status === 401) {
+        const freshToken = await getValidToken();
+        if (freshToken && freshToken !== currentToken) {
+          const retryController = new AbortController();
+          const retryTimeoutId = setTimeout(() => retryController.abort(), 8000);
+          response = await fetch('/api/vendors', {
+            headers: {
+              'Authorization': `Bearer ${freshToken}`
+            },
+            signal: retryController.signal
+          }).catch(() => null);
+          clearTimeout(retryTimeoutId);
+        }
+      }
+
       if (response && response.ok) {
         const data = await response.json().catch(() => []);
         if (Array.isArray(data)) {
-          const matched = data.find((v: any) => v.email?.toLowerCase() === authUser.email.toLowerCase());
+          const matched = data[0];
           if (matched) {
             if (matched.wallet) setWallet(matched.wallet);
             if (matched.bankName) setBankName(matched.bankName);
@@ -273,22 +304,28 @@ export default function Home() {
     } catch (err) {
       console.warn('Failed to fetch wallet details:', err);
     }
-  }, [authUser?.email]);
+  }, [authUser?.email, getValidToken]);
 
   const fetchNotifications = React.useCallback(async () => {
     if (!authUser?.email) return;
     try {
-      const response = await fetch(`/api/notifications?email=${encodeURIComponent(authUser.email)}`).catch((err) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(`/api/notifications?email=${encodeURIComponent(authUser.email)}`, {
+        signal: controller.signal
+      }).catch((err) => {
         console.warn('fetchNotifications network error:', err);
         return null;
       });
+      clearTimeout(timeoutId);
+
       if (response && response.ok) {
         const data = await response.json().catch(() => []);
         if (Array.isArray(data)) {
-          const mapped = data.map((n: any) => ({
+          const mapped: AlertNotification[] = data.map((n: any) => ({
             id: n.id,
-            type: 'SYSTEM',
-            severity: 'INFO',
+            type: 'SYSTEM' as const,
+            severity: 'INFO' as const,
             message: n.message,
             timestamp: formatTimeAgo(n.created_at),
             read: n.is_read
@@ -302,29 +339,49 @@ export default function Home() {
   }, [authUser?.email, formatTimeAgo]);
 
   const fetchProducts = React.useCallback(async () => {
+    if (authIsLoading || !authIsLoggedIn) return;
+
+    const currentToken = await getValidToken();
+    if (!currentToken) {
+      console.warn('fetchProducts skipped: No authenticated session available.');
+      return;
+    }
+
     const queryStoreId = authStore?.id || storeId || '#VLX-MER-089';
-    const savedToken = typeof window !== 'undefined' ? localStorage.getItem('villex_vendor_token') : null;
     try {
-      const response = await fetch(`/api/products?storeId=${encodeURIComponent(queryStoreId)}`, {
+      let response = await fetch(`/api/products?storeId=${encodeURIComponent(queryStoreId)}`, {
         headers: {
-          ...(savedToken ? { Authorization: `Bearer ${savedToken}` } : {}),
+          'Authorization': `Bearer ${currentToken}`,
         },
       }).catch((err) => {
         console.warn('fetchProducts network error:', err);
         return null;
       });
+
+      // If token expired, attempt one safe refresh and retry
+      if (response && response.status === 401) {
+        const freshToken = await getValidToken();
+        if (freshToken && freshToken !== currentToken) {
+          response = await fetch(`/api/products?storeId=${encodeURIComponent(queryStoreId)}`, {
+            headers: {
+              'Authorization': `Bearer ${freshToken}`,
+            },
+          }).catch(() => null);
+        }
+      }
+
       if (response && response.ok) {
         const data = await response.json().catch(() => null);
         if (Array.isArray(data)) {
           setProducts(data);
         }
-      } else {
-        console.warn('fetchProducts returned non-OK status:', response?.status);
+      } else if (response) {
+        console.warn('fetchProducts returned non-OK status:', response.status);
       }
     } catch (err) {
       console.warn('Failed to fetch vendor products:', err);
     }
-  }, [authStore?.id, storeId]);
+  }, [authIsLoading, authIsLoggedIn, authStore?.id, storeId, getValidToken]);
 
   const fetchOrders = React.useCallback(async () => {
     try {
@@ -386,7 +443,7 @@ export default function Home() {
 
   React.useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
-    if (authIsLoggedIn && authStore) {
+    if (!authIsLoading && authIsLoggedIn && authStore) {
       fetchProducts();
       fetchOrders();
       fetchWallet();
@@ -396,7 +453,7 @@ export default function Home() {
         fetchNotifications();
         fetchWallet(); // also fetch wallet/status to see if admin approved live
       }, 15000);
-    } else {
+    } else if (!authIsLoading && !authIsLoggedIn) {
       setProducts([]);
       setOrders([]);
       setWallet(undefined);
@@ -405,7 +462,7 @@ export default function Home() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [authIsLoggedIn, authStore, fetchProducts, fetchOrders, fetchWallet, fetchNotifications]);
+  }, [authIsLoading, authIsLoggedIn, authStore, fetchProducts, fetchOrders, fetchWallet, fetchNotifications]);
 
   React.useEffect(() => {
     if (authIsLoggedIn && authStore) {
@@ -878,15 +935,32 @@ export default function Home() {
   // Callback to delete a product
   const handleDeleteProduct = async (productId: string) => {
     try {
-      const savedToken = typeof window !== 'undefined' ? localStorage.getItem('villex_vendor_token') : null;
-      const response = await fetch(`/api/products?id=${encodeURIComponent(productId)}`, {
+      const currentToken = await getValidToken();
+      if (!currentToken) {
+        alert('Your session has expired or is invalid. Please sign in again.');
+        return;
+      }
+
+      let response = await fetch(`/api/products?id=${encodeURIComponent(productId)}`, {
         method: 'DELETE',
         headers: {
-          ...(savedToken ? { Authorization: `Bearer ${savedToken}` } : {}),
+          'Authorization': `Bearer ${currentToken}`,
         },
       });
 
-      if (response.ok) {
+      if (response && response.status === 401) {
+        const freshToken = await getValidToken();
+        if (freshToken && freshToken !== currentToken) {
+          response = await fetch(`/api/products?id=${encodeURIComponent(productId)}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${freshToken}`,
+            },
+          });
+        }
+      }
+
+      if (response && response.ok) {
         const productDetails = products.find(p => p.id === productId);
         const name = productDetails ? productDetails.name : 'Product';
 
@@ -903,8 +977,8 @@ export default function Home() {
         };
         setNotifications((prev) => [newAlert, ...prev]);
       } else {
-        const errData = await response.json().catch(() => ({}));
-        alert(`Failed to delete product: ${errData.error || response.statusText}`);
+        const errData = await response?.json().catch(() => ({})) || {};
+        alert(`Failed to delete product: ${errData.error || response?.statusText || 'Unauthorized'}`);
         console.error('Failed to delete product via API:', errData);
       }
     } catch (err) {
@@ -916,15 +990,21 @@ export default function Home() {
   const handleSaveProduct = async (formData: ProductFormData) => {
     setIsSubmittingProduct(true);
     try {
+      const currentToken = await getValidToken();
+      if (!currentToken) {
+        alert('Your authentication session is missing or expired. Please sign in again to publish products.');
+        setIsSubmittingProduct(false);
+        return;
+      }
+
       const currentStoreId = authStore?.id || storeId || '#VLX-MER-089';
       const currentStoreName = authStore?.storeName || storeName || 'ElectroPulse Store';
-      const savedToken = typeof window !== 'undefined' ? localStorage.getItem('villex_vendor_token') : null;
 
-      const response = await fetch('/api/products', {
+      let response = await fetch('/api/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(savedToken ? { Authorization: `Bearer ${savedToken}` } : {}),
+          'Authorization': `Bearer ${currentToken}`,
         },
         body: JSON.stringify({
           ...formData,
@@ -934,9 +1014,29 @@ export default function Home() {
         }),
       });
 
-      const resData = await response.json().catch(() => ({}));
+      // If 401, attempt one safe token refresh and retry
+      if (response && response.status === 401) {
+        const freshToken = await getValidToken();
+        if (freshToken && freshToken !== currentToken) {
+          response = await fetch('/api/products', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${freshToken}`,
+            },
+            body: JSON.stringify({
+              ...formData,
+              storeId: currentStoreId,
+              storeName: currentStoreName,
+              vendorEmail: vendorEmail,
+            }),
+          });
+        }
+      }
 
-      if (response.ok && resData.success !== false && resData.product) {
+      const resData = await response?.json().catch(() => ({})) || {};
+
+      if (response && response.ok && resData.success !== false && resData.product) {
         setProducts((prev) => {
           const idx = prev.findIndex((p) => p.id === resData.product.id);
           if (idx >= 0) {
@@ -969,11 +1069,11 @@ export default function Home() {
             : `Product "${formData.name}" submitted successfully!\n\nYour product is currently PENDING review. Once approved by the Super Admin, it will automatically appear live on BuyBabu.`
         );
 
-        // ONLY on verified success: switch view to list
+        // Transition back to list view only on confirmed success
         setInventorySubView('list');
         setEditingProductId(null);
       } else {
-        const errorMsg = resData.error || `Server responded with status ${response.status}`;
+        const errorMsg = resData.error || `Server responded with status ${response?.status || 500}`;
         console.error('Failed to save product via API:', errorMsg);
         const errorAlert: AlertNotification = {
           id: Date.now().toString(),
@@ -985,10 +1085,9 @@ export default function Home() {
         };
         setNotifications((prev) => [errorAlert, ...prev]);
         alert(`Failed to publish product:\n${errorMsg}\n\nYour entered details have been preserved. Please check the values and try again.`);
-        // NOTE: setInventorySubView is intentionally NOT called so the form stays open with all inputs intact
       }
     } catch (err: any) {
-      console.error('Network error saving product:', err);
+      console.error('Network exception saving product:', err);
       const networkMsg = err?.message || 'Network communication error';
       alert(`Network error saving product: ${networkMsg}\n\nYour entered details have been preserved. Please try again.`);
     } finally {
