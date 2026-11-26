@@ -15,8 +15,10 @@ export interface Product {
   rating: number;
   reviews: number;
   category: string;
+  categorySlug?: string;
   brand: string;
   inStock: boolean;
+  stock?: number;
   freeShipping: boolean;
   expressDelivery: boolean;
   description: string;
@@ -28,6 +30,9 @@ export interface Product {
   gallery?: string[];
   specs?: Record<string, string>;
   sku?: string;
+  createdAt?: string;
+  options?: any[];
+  variants?: any[];
 }
 
 interface ProductCardViewProps {

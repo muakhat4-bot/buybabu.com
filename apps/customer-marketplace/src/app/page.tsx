@@ -89,6 +89,14 @@ export default function Home() {
 
   const newArrivals = React.useMemo(() => {
     return [...productsList].sort((a, b) => {
+      // 1. Prefer database createdAt timestamp for real database products
+      if (a.createdAt && b.createdAt) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (a.createdAt) return -1;
+      if (b.createdAt) return 1;
+
+      // 2. Backward compatibility fallback for legacy mock product IDs (p-1, p-2)
       const getTimestamp = (id: string | undefined) => {
         if (!id) return 0;
         const match = id.match(/p-(\d+)/);

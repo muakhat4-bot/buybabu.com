@@ -136,8 +136,11 @@ function SearchPageContent() {
 
     // Category filter
     if (category) {
-      const catLower = category.toLowerCase();
-      const prodCatLower = product.category ? product.category.toLowerCase() : '';
+      const catLower = category.toLowerCase().trim();
+      const catNorm = catLower.replace(/-/g, ' ');
+      const prodCatLower = (product.category || '').toLowerCase().trim();
+      const prodCatNorm = prodCatLower.replace(/-/g, ' ');
+      const prodCatSlug = (product.categorySlug || '').toLowerCase().trim();
       
       const categorySlugMap: Record<string, string[]> = {
         'smart-gadgets': ['smart gadgets'],
@@ -152,13 +155,20 @@ function SearchPageContent() {
         'tools': ['tools'],
       };
 
-      let matchesCategory = prodCatLower === catLower;
+      let matchesCategory = 
+        prodCatLower === catLower ||
+        prodCatSlug === catLower ||
+        prodCatNorm === catNorm;
+
       if (!matchesCategory) {
-        const mappedCats = categorySlugMap[catLower];
+        const mappedCats = categorySlugMap[catLower] || categorySlugMap[catNorm.replace(/\s+/g, '-')];
         if (mappedCats) {
-          matchesCategory = mappedCats.includes(prodCatLower);
+          matchesCategory = mappedCats.some(c => {
+            const cNorm = c.toLowerCase().replace(/-/g, ' ').trim();
+            return cNorm === prodCatNorm || prodCatNorm.includes(cNorm) || cNorm.includes(prodCatNorm);
+          });
         } else {
-          matchesCategory = prodCatLower.includes(catLower) || catLower.includes(prodCatLower);
+          matchesCategory = prodCatNorm.includes(catNorm) || catNorm.includes(prodCatNorm);
         }
       }
       if (!matchesCategory) return false;
@@ -189,9 +199,12 @@ function SearchPageContent() {
       case 'rating_desc':
         return b.rating - a.rating;
       case 'newest':
-        // Tag "New" products first
+        // Tag "New" products first, then sort by real database creation date
         if (a.tag === 'New' && b.tag !== 'New') return -1;
         if (b.tag === 'New' && a.tag !== 'New') return 1;
+        if (a.createdAt && b.createdAt) {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
         return 0;
       case 'relevance':
       default:

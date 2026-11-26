@@ -40,22 +40,55 @@ export async function GET(request: Request) {
 
     let mappedProducts: any[] = [];
 
+    const categorySlugMap: Record<string, string[]> = {
+      'smart-gadgets': ['smart gadgets', 'smart-gadgets'],
+      'smart gadgets': ['smart gadgets', 'smart-gadgets'],
+      'apparel': ['apparels & clothing', 'apparel', 'clothing'],
+      'apparels & clothing': ['apparels & clothing', 'apparel', 'clothing'],
+      'baby-care': ['mother & baby care', 'baby care', 'baby-care'],
+      'mother & baby care': ['mother & baby care', 'baby care', 'baby-care'],
+      'electronics': ['electronics', 'audio', 'chargers', 'keyboards', 'wearables', 'accessories'],
+      'kitchen': ['kitchen essentials', 'kitchen-essentials', 'kitchen'],
+      'kitchen-essentials': ['kitchen essentials', 'kitchen-essentials', 'kitchen'],
+      'kitchen essentials': ['kitchen essentials', 'kitchen-essentials', 'kitchen'],
+      'bath': ['bath essentials', 'bath-essentials', 'bath'],
+      'bath essentials': ['bath essentials', 'bath-essentials', 'bath'],
+      'bath-essentials': ['bath essentials', 'bath-essentials', 'bath'],
+      'home': ['home arrivals', 'home-arrivals', 'home'],
+      'home-arrivals': ['home arrivals', 'home-arrivals', 'home'],
+      'home arrivals': ['home arrivals', 'home-arrivals', 'home'],
+      'beauty': ['beauty and cosmetics', 'beauty-and-cosmetics', 'beauty', 'cosmetics'],
+      'beauty and cosmetics': ['beauty and cosmetics', 'beauty-and-cosmetics', 'beauty', 'cosmetics'],
+      'fitness': ['health & fitness', 'health-fitness', 'fitness'],
+      'health & fitness': ['health & fitness', 'health-fitness', 'fitness'],
+      'tools': ['tools'],
+    };
+
     try {
       let query = supabaseAdmin
         .from('products')
-        .select('*, vendors!inner(*), categories(*), product_variants(*, inventories(*))', { count: 'exact' })
+        .select('*, vendors!inner(*), categories(*), product_variants(*)', { count: 'exact' })
         .eq('status', 'PUBLISHED')
         .eq('approval_status', 'APPROVED')
-        .eq('vendors.status', 'ACTIVE');
+        .eq('vendors.status', 'ACTIVE')
+        .is('deleted_at', null)
+        .is('vendors.deleted_at', null);
 
       if (id) {
         query = query.eq('id', id);
       }
 
       if (storeId) {
-        const cleanStoreId = storeId.replace('#', '').toLowerCase().trim();
+        const cleanStoreId = storeId.replace('#', '').trim();
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const isUuid = UUID_REGEX.test(cleanStoreId);
+
         let vQuery = supabaseAdmin.from('vendors').select('id');
-        vQuery = vQuery.or(`id.eq."${storeId}",store_name.ilike."${storeId}",store_slug.ilike."${cleanStoreId}"`);
+        if (isUuid) {
+          vQuery = vQuery.or(`id.eq.${cleanStoreId},store_slug.ilike."${cleanStoreId}",store_name.ilike."${cleanStoreId}"`);
+        } else {
+          vQuery = vQuery.or(`store_slug.ilike."${cleanStoreId}",store_name.ilike."${cleanStoreId}"`);
+        }
 
         const { data: v } = await vQuery.maybeSingle();
 
@@ -66,26 +99,19 @@ export async function GET(request: Request) {
 
       if (category) {
         const catLower = category.toLowerCase().trim();
-        const categorySlugMap: Record<string, string[]> = {
-          'smart-gadgets': ['smart gadgets'],
-          'apparel': ['apparels & clothing', 'apparel', 'clothing'],
-          'baby-care': ['mother & baby care', 'baby care'],
-          'electronics': ['electronics', 'audio', 'chargers', 'keyboards', 'wearables', 'accessories'],
-          'kitchen': ['kitchen essentials', 'kitchen'],
-          'bath': ['bath essentials', 'bath'],
-          'home': ['home arrivals', 'home'],
-          'beauty': ['beauty and cosmetics', 'beauty', 'cosmetics'],
-          'fitness': ['health & fitness', 'fitness'],
-          'tools': ['tools'],
-        };
+        const catSlug = catLower.replace(/\s+/g, '-');
+        const catName = catLower.replace(/-/g, ' ');
 
-        const searchCategories = categorySlugMap[catLower] || [catLower];
-        const slugs = searchCategories.map(c => c.replace(/\s+/g, '-').toLowerCase());
+        const searchKeywords = categorySlugMap[catLower] || categorySlugMap[catSlug] || [catLower, catSlug, catName];
+        const searchSlugs = Array.from(new Set([
+          ...searchKeywords.map(k => k.replace(/\s+/g, '-')),
+          catSlug
+        ]));
 
         const { data: cats } = await supabaseAdmin
           .from('categories')
           .select('id')
-          .in('slug', slugs);
+          .in('slug', searchSlugs);
 
         if (cats && cats.length > 0) {
           query = query.in('category_id', cats.map(c => c.id));
@@ -97,17 +123,48 @@ export async function GET(request: Request) {
         query = query.or(`name.ilike.%${queryLower}%,brand.ilike.%${queryLower}%,description.ilike.%${queryLower}%`);
       }
 
-      const { data: dbProducts } = await query
+      const { data: dbProducts, error: dbError } = await query
         .range(skip, skip + limit - 1)
         .order('created_at', { ascending: false });
 
+      if (dbError) {
+        console.error('Supabase products fetch error in customer marketplace:', dbError);
+      }
+
       if (dbProducts && dbProducts.length > 0) {
+        // Collect all variant IDs to fetch inventory quantities separately (avoids invalid FK join issues)
+        const variantIds = dbProducts
+          .flatMap((p: any) => (p.product_variants || []).map((v: any) => v.id))
+          .filter(Boolean);
+
+        const inventoryMap: Record<string, number> = {};
+        if (variantIds.length > 0) {
+          try {
+            const { data: inventoryData, error: invError } = await supabaseAdmin
+              .from('inventories')
+              .select('variant_id, quantity')
+              .in('variant_id', variantIds);
+
+            if (!invError && inventoryData) {
+              inventoryData.forEach((item: any) => {
+                if (item.variant_id) {
+                  inventoryMap[item.variant_id] = (inventoryMap[item.variant_id] || 0) + Number(item.quantity || 0);
+                }
+              });
+            }
+          } catch (invErr) {
+            console.warn('Inventory fetch warning in customer marketplace:', invErr);
+          }
+        }
+
         mappedProducts = dbProducts.map(p => {
           const vendor = p.vendors;
           const categoryObj = p.categories;
           const variants = p.product_variants || [];
           const defaultVariant = variants[0];
-          const inventory = defaultVariant?.inventories?.[0] || defaultVariant?.inventories || null;
+          
+          const defaultStock = defaultVariant ? (inventoryMap[defaultVariant.id] || 0) : 0;
+          const totalStock = variants.reduce((sum: number, v: any) => sum + (inventoryMap[v.id] || 0), 0);
 
           const imagesObj = (p.images as any) || { main: '', gallery: [] };
           const image = imagesObj.main || 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=500&auto=format&fit=crop&q=80';
@@ -119,18 +176,21 @@ export async function GET(request: Request) {
             sku: defaultVariant?.sku || '',
             name: p.name,
             category: categoryObj ? categoryObj.name.toLowerCase() : '',
+            categorySlug: categoryObj?.slug || '',
             price: Number(defaultVariant?.price || 0),
             oldPrice: defaultVariant?.compare_at_price ? Number(defaultVariant.compare_at_price) : undefined,
             discount: defaultVariant?.compare_at_price && Number(defaultVariant.price) < Number(defaultVariant.compare_at_price)
               ? Math.round(((Number(defaultVariant.compare_at_price) - Number(defaultVariant.price)) / Number(defaultVariant.compare_at_price)) * 100)
               : undefined,
-            rating: Number(p.avg_rating),
-            reviews: p.review_count,
+            rating: Number(p.avg_rating || 5),
+            reviews: p.review_count || 0,
             brand: p.brand || undefined,
-            inStock: inventory ? inventory.stock_qty > 0 : false,
+            inStock: totalStock > 0 || defaultStock > 0,
+            stock: totalStock > 0 ? totalStock : defaultStock,
             freeShipping: true,
             expressDelivery: true,
             description: p.description,
+            createdAt: p.created_at,
             image,
             images,
             gallery,
@@ -138,16 +198,14 @@ export async function GET(request: Request) {
             storeId: vendor?.store_slug || vendor?.id || '',
             storeName: vendor?.store_name || '',
             options: reconstructOptions(variants),
-            variants: variants.map((v: any) => {
-              const inv = v.inventories?.[0] || v.inventories || null;
-              return {
-                name: (v.attributes as any)?.option || (v.attributes as any)?.name || 'Default',
-                price: Number(v.price),
-                stock: inv?.stock_qty || 0,
-                sku: v.sku,
-                active: v.is_active
-              };
-            })
+            variants: variants.map((v: any) => ({
+              id: v.id,
+              name: (v.attributes as any)?.option || (v.attributes as any)?.name || v.name || 'Default',
+              price: Number(v.price),
+              stock: inventoryMap[v.id] || 0,
+              sku: v.sku,
+              active: v.is_active
+            }))
           };
         });
       }
@@ -167,10 +225,27 @@ export async function GET(request: Request) {
       });
     }
 
-    // Apply category filtering
+    // Apply category filtering with normalized slug and name support
     if (category) {
       const catLower = category.toLowerCase().trim();
-      combined = combined.filter((p: any) => (p.category || '').toLowerCase().includes(catLower));
+      const catSlug = catLower.replace(/\s+/g, '-');
+      const catNorm = catLower.replace(/-/g, ' ');
+
+      const searchKeywords = categorySlugMap[catLower] || categorySlugMap[catSlug] || [catLower, catSlug, catNorm];
+      const normalizedKeywords = searchKeywords.map(k => k.toLowerCase().replace(/-/g, ' ').trim());
+
+      combined = combined.filter((p: any) => {
+        const prodCat = (p.category || '').toLowerCase().trim();
+        const prodCatNorm = prodCat.replace(/-/g, ' ');
+        const prodSlug = (p.categorySlug || '').toLowerCase().trim();
+
+        return (
+          prodSlug === catSlug ||
+          prodCat === catLower ||
+          prodCatNorm === catNorm ||
+          normalizedKeywords.some(k => prodCatNorm.includes(k) || k.includes(prodCatNorm))
+        );
+      });
     }
 
     // Apply query search filtering
