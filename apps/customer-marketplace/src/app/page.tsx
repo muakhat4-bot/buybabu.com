@@ -6,6 +6,21 @@ import { Button, Card, CardContent, Input, Logo } from '@villex/ui';
 import { Navbar } from '@/components/layout/navbar';
 import { Product } from '@/features/catalog/components/product-card-view';
 import { HeroCarousel } from '@/components/hero-carousel';
+import { CircularCategoryShowcase } from '@/components/circular-category-carousel';
+
+// Static category data to ensure immediate initial rendering
+const INITIAL_CATEGORIES = [
+  { name: 'Smart gadgets', image: 'https://images.unsplash.com/photo-1546054454-aa26e2b734c7?w=400&auto=format&fit=crop&q=80', count: '800+ Items', slug: 'smart-gadgets' },
+  { name: 'Apparels & Clothing', image: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400&auto=format&fit=crop&q=80', count: '2.4k+ Items', slug: 'apparel' },
+  { name: 'Mother & Baby care', image: 'https://images.unsplash.com/photo-1515488042361-404e9250afef?w=400&auto=format&fit=crop&q=80', count: '600+ Items', slug: 'baby-care' },
+  { name: 'Electronics', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&auto=format&fit=crop&q=80', count: '1.8k+ Items', slug: 'electronics' },
+  { name: 'Kitchen Essentials', image: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=400&auto=format&fit=crop&q=80', count: '1.2k+ Items', slug: 'kitchen-essentials' },
+  { name: 'Bath Essentials', image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&auto=format&fit=crop&q=80', count: '750+ Items', slug: 'bath-essentials' },
+  { name: 'Home Arrivals', image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=400&auto=format&fit=crop&q=80', count: '1.5k+ Items', slug: 'home-arrivals' },
+  { name: 'Beauty and Cosmetics', image: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400&auto=format&fit=crop&q=80', count: '950+ Items', slug: 'beauty' },
+  { name: 'Health & Fitness', image: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&auto=format&fit=crop&q=80', count: '1.1k+ Items', slug: 'fitness' },
+  { name: 'Tools', image: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=400&auto=format&fit=crop&q=80', count: '500+ Items', slug: 'tools' },
+];
 
 export default function Home() {
   // Simple state for countdown timer
@@ -43,17 +58,19 @@ export default function Home() {
     // 2. Parallel Background Fetch (Promise.allSettled)
     const fetchMarketplaceData = async () => {
       try {
-        const [prodRes, dealRes, trendRes, hotRes] = await Promise.allSettled([
+        const [prodRes, dealRes, trendRes, hotRes, catRes] = await Promise.allSettled([
           fetch('/api/products?limit=8').then((res) => (res.ok ? res.json() : [])),
           fetch('/api/merchandising/flash-deals').then((res) => (res.ok ? res.json() : [])),
           fetch('/api/merchandising/trending').then((res) => (res.ok ? res.json() : [])),
-          fetch('/api/merchandising/hot-sales').then((res) => (res.ok ? res.json() : []))
+          fetch('/api/merchandising/hot-sales').then((res) => (res.ok ? res.json() : [])),
+          fetch('/api/categories').then((res) => (res.ok ? res.json() : []))
         ]);
 
         const prods = prodRes.status === 'fulfilled' && Array.isArray(prodRes.value) ? prodRes.value : null;
         const deals = dealRes.status === 'fulfilled' && Array.isArray(dealRes.value) ? dealRes.value : [];
         const trending = trendRes.status === 'fulfilled' && Array.isArray(trendRes.value) ? trendRes.value : [];
         const hot = hotRes.status === 'fulfilled' && Array.isArray(hotRes.value) ? hotRes.value : [];
+        const liveCats = catRes.status === 'fulfilled' && Array.isArray(catRes.value) ? catRes.value : [];
 
         if (prods !== null) setProductsList(prods);
         if (deals.length > 0) {
@@ -70,6 +87,17 @@ export default function Home() {
         }
         if (trending.length > 0) setTrendingProducts(trending);
         if (hot.length > 0) setHotSales(hot);
+        if (liveCats.length > 0) {
+          const merged = liveCats.map((dbCat: any) => {
+            const initialMatch = INITIAL_CATEGORIES.find((c) => c.slug === dbCat.slug || c.name.toLowerCase() === dbCat.name.toLowerCase());
+            return {
+              ...dbCat,
+              image: dbCat.image_url || initialMatch?.image || 'https://images.unsplash.com/photo-1546054454-aa26e2b734c7?w=400&auto=format&fit=crop&q=80',
+              count: initialMatch?.count || 'Popular Items'
+            };
+          });
+          setCategoriesList(merged);
+        }
 
         try {
           sessionStorage.setItem(
@@ -120,19 +148,7 @@ export default function Home() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Static mockup data to ensure immediate rendering
-  const categories = [
-    { name: 'Smart gadgets', image: 'https://images.unsplash.com/photo-1546054454-aa26e2b734c7?w=400&auto=format&fit=crop&q=80', count: '800+ Items', slug: 'smart-gadgets' },
-    { name: 'Apparels & Clothing', image: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400&auto=format&fit=crop&q=80', count: '2.4k+ Items', slug: 'apparel' },
-    { name: 'Mother & Baby care', image: 'https://images.unsplash.com/photo-1515488042361-404e9250afef?w=400&auto=format&fit=crop&q=80', count: '600+ Items', slug: 'baby-care' },
-    { name: 'Electronics', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&auto=format&fit=crop&q=80', count: '1.8k+ Items', slug: 'electronics' },
-    { name: 'Kitchen Essentials', image: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=400&auto=format&fit=crop&q=80', count: '1.2k+ Items', slug: 'kitchen-essentials' },
-    { name: 'Bath Essentials', image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&auto=format&fit=crop&q=80', count: '750+ Items', slug: 'bath-essentials' },
-    { name: 'Home Arrivals', image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=400&auto=format&fit=crop&q=80', count: '1.5k+ Items', slug: 'home-arrivals' },
-    { name: 'Beauty and Cosmetics', image: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=400&auto=format&fit=crop&q=80', count: '950+ Items', slug: 'beauty' },
-    { name: 'Health & Fitness', image: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&auto=format&fit=crop&q=80', count: '1.1k+ Items', slug: 'fitness' },
-    { name: 'Tools', image: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=400&auto=format&fit=crop&q=80', count: '500+ Items', slug: 'tools' },
-  ];
+  const [categoriesList, setCategoriesList] = React.useState(INITIAL_CATEGORIES);
 
   const newArrivals = React.useMemo(() => {
     return [...productsList].sort((a, b) => {
@@ -185,35 +201,12 @@ export default function Home() {
 
       </section>
 
-      {/* 3. Category Section */}
-      <section className="py-12 bg-secondary/10">
-        <div className="container mx-auto px-4">
-          <h2 className="text-2xl font-bold tracking-tight mb-8">Browse Categories</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 lg:gap-6">
-            {categories.map((cat, idx) => (
-              <Link
-                href={`/category/${cat.slug}`}
-                key={idx}
-                className="group flex flex-col rounded-2xl bg-card border border-border/60 shadow-sm hover:shadow-md hover:border-primary/40 overflow-hidden transition-all duration-300"
-              >
-                <div className="relative aspect-square w-full overflow-hidden bg-secondary/35 border-b border-border/40">
-                  <img
-                    src={cat.image}
-                    alt={cat.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                </div>
-                <div className="p-4 text-center">
-                  <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors block line-clamp-1">{cat.name}</span>
-                  <span className="text-[11px] text-muted-foreground mt-0.5 block">{cat.count}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* 3. 3D Circular Category Showcase */}
+      <CircularCategoryShowcase
+        categories={categoriesList}
+        title="Browse Categories"
+        subtitle="Discover products across our curated marketplace departments"
+      />
 
       {/* 3.5. New Arrivals Section */}
       <section className="py-16">
