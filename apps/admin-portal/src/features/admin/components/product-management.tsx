@@ -12,6 +12,7 @@ export interface Product {
   oldPrice?: number;
   discount?: number;
   stock: number;
+  brand?: string;
   description?: string;
   images?: string[];
   options?: any[];

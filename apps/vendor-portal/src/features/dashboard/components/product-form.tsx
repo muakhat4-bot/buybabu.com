@@ -2,8 +2,10 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input } from '@villex/ui';
+import { useAuth } from '@/context/vendor-auth-context';
 
 export interface ProductVariant {
+  id?: string;
   name: string;
   price?: number;
   stock?: number;
@@ -73,6 +75,7 @@ interface ProductFormProps {
 
 export function ProductForm({ initialData, onSave, onCancel, isSubmitting = false }: ProductFormProps) {
   const isEditMode = !!initialData;
+  const { getValidToken } = useAuth();
 
   // Form states
   const [name, setName] = React.useState(initialData?.name || '');
@@ -115,22 +118,47 @@ export function ProductForm({ initialData, onSave, onCancel, isSubmitting = fals
     ? Math.round(((finalOldPrice - finalPrice) / finalOldPrice) * 100)
     : 0;
 
-  const handleFileSelection = (files: File[]) => {
-    files.forEach((file) => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target?.result && typeof event.target.result === 'string') {
-            const resultUrl = event.target.result;
-            setImages((prev) => {
-              if (prev.includes(resultUrl)) return prev;
-              return [...prev, resultUrl];
-            });
+  const handleFileSelection = async (files: File[]) => {
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    let token = '';
+    try {
+      token = (await getValidToken()) || '';
+    } catch {
+      // Fallback
+    }
+
+    for (const file of imageFiles) {
+      let uploadedUrl: string | null = null;
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', 'product-images');
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.url) {
+            uploadedUrl = data.url;
+            setImages((prev) => (prev.includes(data.url) ? prev : [...prev, data.url]));
           }
-        };
-        reader.readAsDataURL(file);
+        }
+      } catch (uploadErr) {
+        console.warn('Upload to /api/upload failed, falling back to local preview:', uploadErr);
       }
-    });
+
+      // If upload to Supabase storage did not succeed, alert the user and block base64 injection
+      if (!uploadedUrl) {
+        alert(`Failed to upload image "${file.name}". Please ensure you are signed in and the file is an allowed image (JPEG/PNG/WebP, max 5MB).`);
+      }
+    }
   };
 
   const handleOpenCloudDrive = (provider: string) => {
@@ -307,6 +335,12 @@ export function ProductForm({ initialData, onSave, onCancel, isSubmitting = fals
     const calculatedPrice = finalPrice || (regularPrice !== '' ? Number(regularPrice) : 0);
     if (!calculatedPrice || calculatedPrice <= 0) {
       alert('Please enter a valid Price (PKR) for your product.');
+      return;
+    }
+
+    const hasBase64 = images.some((img) => img.startsWith('data:image/') || img.length > 2000);
+    if (hasBase64) {
+      alert('One or more images in the form failed cloud storage upload and cannot be submitted. Please remove them and re-upload before saving.');
       return;
     }
 

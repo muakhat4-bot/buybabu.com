@@ -37,6 +37,19 @@ function SearchPageContent() {
   const [productsList, setProductsList] = React.useState<Product[]>([]);
 
   React.useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem('bb_catalog_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const isFresh = parsed.savedAt && (Date.now() - Number(parsed.savedAt) < 5 * 60 * 1000);
+        if (isFresh && Array.isArray(parsed.products) && parsed.products.length > 0) {
+          setProductsList(parsed.products);
+        }
+      }
+    } catch {
+      // Storage unavailable
+    }
+
     const fetchAllProducts = async () => {
       setIsLoading(true);
       try {
@@ -143,19 +156,34 @@ function SearchPageContent() {
       const prodCatSlug = (product.categorySlug || '').toLowerCase().trim();
       
       const categorySlugMap: Record<string, string[]> = {
-        'smart-gadgets': ['smart gadgets'],
+        'smart-gadgets': ['smart gadgets', 'smart-gadgets'],
+        'smart gadgets': ['smart gadgets', 'smart-gadgets'],
         'apparel': ['apparels & clothing', 'apparel', 'clothing'],
-        'baby-care': ['mother & baby care', 'baby care'],
+        'apparels & clothing': ['apparels & clothing', 'apparel', 'clothing'],
+        'clothing': ['apparels & clothing', 'apparel', 'clothing'],
+        'baby-care': ['mother & baby care', 'baby care', 'baby-care'],
+        'mother & baby care': ['mother & baby care', 'baby care', 'baby-care'],
+        'baby care': ['mother & baby care', 'baby care', 'baby-care'],
         'electronics': ['electronics', 'audio', 'chargers', 'keyboards', 'wearables', 'accessories'],
-        'kitchen': ['kitchen essentials', 'kitchen'],
-        'bath': ['bath essentials', 'bath'],
-        'home': ['home arrivals', 'home'],
-        'beauty': ['beauty and cosmetics', 'beauty', 'cosmetics'],
-        'fitness': ['health & fitness', 'fitness'],
+        'kitchen': ['kitchen essentials', 'kitchen-essentials', 'kitchen'],
+        'kitchen-essentials': ['kitchen essentials', 'kitchen-essentials', 'kitchen'],
+        'kitchen essentials': ['kitchen essentials', 'kitchen-essentials', 'kitchen'],
+        'bath': ['bath essentials', 'bath-essentials', 'bath'],
+        'bath-essentials': ['bath essentials', 'bath-essentials', 'bath'],
+        'bath essentials': ['bath essentials', 'bath-essentials', 'bath'],
+        'home': ['home arrivals', 'home-arrivals', 'home'],
+        'home-arrivals': ['home arrivals', 'home-arrivals', 'home'],
+        'home arrivals': ['home arrivals', 'home-arrivals', 'home'],
+        'beauty': ['beauty and cosmetics', 'beauty-and-cosmetics', 'beauty', 'cosmetics'],
+        'beauty and cosmetics': ['beauty and cosmetics', 'beauty-and-cosmetics', 'beauty', 'cosmetics'],
+        'fitness': ['health & fitness', 'health-fitness', 'fitness'],
+        'health & fitness': ['health & fitness', 'health-fitness', 'fitness'],
         'tools': ['tools'],
       };
 
-      let matchesCategory = 
+      const isCatId = /^\d+$/.test(catLower);
+      let matchesCategory =
+        (isCatId && String((product as any).categoryId) === catLower) ||
         prodCatLower === catLower ||
         prodCatSlug === catLower ||
         prodCatNorm === catNorm;

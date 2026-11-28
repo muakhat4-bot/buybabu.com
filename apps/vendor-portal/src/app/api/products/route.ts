@@ -89,6 +89,23 @@ interface AuthError {
 
 type AuthResult = AuthSuccess | AuthError;
 
+// Vendor Auth Cache (20s TTL) to prevent repeated auth roundtrips on simultaneous dashboard requests
+interface CachedVendorAuth {
+  user: any;
+  vendor: any;
+  timestamp: number;
+}
+const vendorAuthCache = new Map<string, CachedVendorAuth>();
+const AUTH_CACHE_TTL_MS = 20 * 1000;
+
+// Vendor Products Cache (15s TTL) isolated strictly per authenticated vendor
+interface CachedVendorProducts {
+  data: any[];
+  timestamp: number;
+}
+const vendorProductsCache = new Map<string, CachedVendorProducts>();
+const VENDOR_PROD_CACHE_TTL_MS = 15 * 1000;
+
 /**
  * Strict authentication helper:
  * - Requires a valid Supabase JWT in the Authorization header.
@@ -125,6 +142,12 @@ async function authenticateVendor(request: Request): Promise<AuthResult> {
         { status: 401 }
       ),
     };
+  }
+
+  // Check fast auth cache first
+  const cachedAuth = vendorAuthCache.get(token);
+  if (cachedAuth && Date.now() - cachedAuth.timestamp < AUTH_CACHE_TTL_MS) {
+    return { vendor: cachedAuth.vendor, user: cachedAuth.user };
   }
 
   try {
@@ -166,6 +189,9 @@ async function authenticateVendor(request: Request): Promise<AuthResult> {
       };
     }
 
+    // Cache successful auth for this specific token
+    vendorAuthCache.set(token, { vendor, user, timestamp: Date.now() });
+
     return { vendor, user };
   } catch (err: any) {
     console.error('Unexpected auth verification exception:', err);
@@ -186,10 +212,22 @@ export async function GET(request: Request) {
   const vendor = auth.vendor;
 
   try {
+    const cacheKey = `${vendor.id}_${request.url}`;
+    const cachedProd = vendorProductsCache.get(cacheKey);
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id && cachedProd && Date.now() - cachedProd.timestamp < VENDOR_PROD_CACHE_TTL_MS) {
+      return NextResponse.json(cachedProd.data, {
+        headers: {
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+          'x-cache': 'HIT'
+        }
+      });
+    }
+
     const category = searchParams.get('category');
     const q = searchParams.get('q');
-    const id = searchParams.get('id');
 
     let mappedProducts: any[] = [];
 
@@ -328,13 +366,26 @@ export async function GET(request: Request) {
       return NextResponse.json(matched);
     }
 
-    return NextResponse.json(mappedProducts);
+    if (!id) {
+      vendorProductsCache.set(cacheKey, {
+        data: mappedProducts,
+        timestamp: Date.now()
+      });
+    }
+
+    return NextResponse.json(mappedProducts, {
+      headers: {
+        'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+        'x-cache': 'MISS'
+      }
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
+  vendorProductsCache.clear();
   const auth = await authenticateVendor(request);
   if ('errorResponse' in auth) {
     return auth.errorResponse;
@@ -380,6 +431,7 @@ export async function POST(request: Request) {
     // 2. Prepare images and slug
     const images = Array.isArray(body.images) ? body.images : [];
     const imageMain = images[0] || 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=500&auto=format&fit=crop&q=80';
+    const galleryImages = images.length > 1 ? images.slice(1) : [];
     const baseSlug = body.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const slug = `${baseSlug}-${Date.now().toString().slice(-6)}`;
 
@@ -411,6 +463,31 @@ export async function POST(request: Request) {
           { status: 403 }
         );
       }
+    }
+
+    // 4. Strict Validation: Reject base64 data for all newly uploaded product images
+    for (const img of images) {
+      if (typeof img === 'string' && (img.startsWith('data:image/') || img.length > 2000)) {
+        let isExistingLegacyImage = false;
+        if (product && product.images) {
+          const existingData = product.images;
+          const existingList = Array.isArray(existingData)
+            ? existingData
+            : [existingData?.main, ...(existingData?.gallery || [])].filter(Boolean);
+          if (existingList.includes(img)) {
+            isExistingLegacyImage = true;
+          }
+        }
+        if (!isExistingLegacyImage) {
+          return NextResponse.json(
+            { success: false, error: 'Base64 image data cannot be submitted. All images must be uploaded to cloud storage first.' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    if (product) {
 
       // Existing product update
       const { data: updatedProduct, error: updateErr } = await supabaseAdmin
@@ -420,7 +497,7 @@ export async function POST(request: Request) {
           category_id: category?.id,
           description: body.description || '',
           brand: body.brand || null,
-          images: { main: imageMain, gallery: images },
+          images: { main: imageMain, gallery: galleryImages },
           specifications: body.specs || {},
           status: 'DRAFT',
           approval_status: 'PENDING',
@@ -468,7 +545,7 @@ export async function POST(request: Request) {
         slug,
         description: body.description || '',
         brand: body.brand || null,
-        images: { main: imageMain, gallery: images },
+        images: { main: imageMain, gallery: galleryImages },
         specifications: body.specs || {},
         status: 'DRAFT',
         avg_rating: body.rating || 5.0,
@@ -725,6 +802,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  vendorProductsCache.clear();
+  vendorProductsCache.clear();
   const auth = await authenticateVendor(request);
   if ('errorResponse' in auth) {
     return auth.errorResponse;
@@ -802,6 +881,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, error: delError.message }, { status: 500 });
     }
 
+    vendorProductsCache.clear();
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

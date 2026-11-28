@@ -15,6 +15,7 @@ import { Button, Card, Input, Logo } from '@villex/ui';
 import { useAuth } from '../context/vendor-auth-context';
 import { WalletPanel, WalletData } from '../features/dashboard/components/wallet-panel';
 import { MediaPanel } from '../features/dashboard/components/media-panel';
+import { FlashDealsPanel } from '../features/dashboard/components/flash-deals-panel';
 
 function getMarketplaceUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:3000';
@@ -444,14 +445,18 @@ export default function Home() {
   React.useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     if (!authIsLoading && authIsLoggedIn && authStore) {
-      fetchProducts();
-      fetchOrders();
-      fetchWallet();
-      fetchNotifications();
+      Promise.allSettled([
+        fetchProducts(),
+        fetchOrders(),
+        fetchWallet(),
+        fetchNotifications()
+      ]);
 
       interval = setInterval(() => {
-        fetchNotifications();
-        fetchWallet(); // also fetch wallet/status to see if admin approved live
+        Promise.allSettled([
+          fetchNotifications(),
+          fetchWallet() // also fetch wallet/status to see if admin approved live
+        ]);
       }, 15000);
     } else if (!authIsLoading && !authIsLoggedIn) {
       setProducts([]);
@@ -1812,6 +1817,10 @@ export default function Home() {
                 />
               )}
             </>
+          )}
+
+          {activeTab === 'flash-deals' && (
+            <FlashDealsPanel products={products} />
           )}
 
           {activeTab === 'verification' && (

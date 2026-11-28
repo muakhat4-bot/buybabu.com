@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from '@villex/ui';
 import { Navbar } from '@/components/layout/navbar';
 import { useCustomerAuth } from '@/context/customer-auth-context';

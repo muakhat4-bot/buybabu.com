@@ -100,6 +100,26 @@ export function ProductInfo({ product, onAddToCart }: ProductInfoProps) {
         </a>
       </div>
 
+      {/* Flash Deal Callout Banner */}
+      {product.flashDeal && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-destructive/15 via-primary/10 to-destructive/15 border-2 border-destructive/40 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl animate-pulse">⚡</span>
+            <div>
+              <span className="text-xs font-black uppercase text-destructive tracking-wider block">
+                Active Flash Deal Pricing
+              </span>
+              <span className="text-[11px] text-muted-foreground font-semibold">
+                Promotional Price • {product.flashDeal.remainingStock > 0 ? `${product.flashDeal.remainingStock} deal units remaining` : 'Limited promotional stock'}
+              </span>
+            </div>
+          </div>
+          <span className="bg-destructive text-white text-xs font-black px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-sm">
+            -{product.flashDeal.discountPercentage}% OFF
+          </span>
+        </div>
+      )}
+
       {/* Pricing module */}
       <div className="p-4 rounded-2xl bg-secondary/25 border border-border/80 space-y-2">
         <div className="flex items-baseline gap-3">

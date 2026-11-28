@@ -27,7 +27,7 @@ export function getAdminSecret(): string {
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+    binary += String.fromCharCode(bytes[i]!);
   }
   return btoa(binary)
     .replace(/=/g, '')
@@ -100,15 +100,15 @@ export async function verifyAdminToken(token: string): Promise<{ valid: boolean;
       ['verify']
     );
 
-    const signatureBytes = base64UrlDecodeToUint8Array(signatureB64);
+    const signatureBytes = base64UrlDecodeToUint8Array(signatureB64 || '');
     const dataToVerify = enc.encode(`${headerB64}.${payloadB64}`);
 
-    const isValid = await globalThis.crypto.subtle.verify('HMAC', key, signatureBytes, dataToVerify);
+    const isValid = await globalThis.crypto.subtle.verify('HMAC', key, signatureBytes as unknown as BufferSource, dataToVerify);
     if (!isValid) {
       return { valid: false, error: 'Cryptographic signature mismatch' };
     }
 
-    const payloadBytes = base64UrlDecodeToUint8Array(payloadB64);
+    const payloadBytes = base64UrlDecodeToUint8Array(payloadB64 || '');
     const payloadJson = new TextDecoder().decode(payloadBytes);
     const payload = JSON.parse(payloadJson) as AdminTokenPayload;
 

@@ -33,7 +33,7 @@ function isRateLimited(ip: string): boolean {
 
 export function middleware(request: NextRequest) {
   // Rate limiting only — auth is enforced at the route/data layer
-  const ip = request.ip || request.headers.get('x-forwarded-for') || '127.0.0.1';
+  const ip = (request as any).ip || request.headers.get('x-forwarded-for') || '127.0.0.1';
   if (isRateLimited(ip)) {
     return NextResponse.json(
       { error: 'Too Many Requests: Rate limit exceeded (Max 100 requests/min).' },

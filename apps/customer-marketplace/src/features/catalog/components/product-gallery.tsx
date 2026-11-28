@@ -37,6 +37,8 @@ export function ProductGallery({ images, name }: ProductGalleryProps) {
         <img
           src={images[activeIdx] || images[0]}
           alt={name}
+          loading="eager"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-300 group-hover:opacity-0"
         />
 
@@ -73,7 +75,7 @@ export function ProductGallery({ images, name }: ProductGalleryProps) {
                   : 'border-border hover:border-foreground/45 hover:scale-95'
               }`}
             >
-              <img src={img} alt={`${name} thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+              <img src={img} alt={`${name} thumbnail ${idx + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             </button>
           );
         })}

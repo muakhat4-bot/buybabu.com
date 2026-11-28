@@ -29,8 +29,8 @@ export function ProfilePanel() {
   const [saveSuccess, setSaveSuccess] = React.useState(false);
   const [passwordSuccess, setPasswordSuccess] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState('');
-  const [isSaving, setIsSaving] = React.useState(false);
-  const [isSavingPassword, setIsSavingPassword] = React.useState(false);
+  const [_isSaving, setIsSaving] = React.useState(false);
+  const [_isSavingPassword, setIsSavingPassword] = React.useState(false);
 
   const [passwords, setPasswords] = React.useState({
     current: '',

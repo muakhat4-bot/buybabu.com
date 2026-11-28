@@ -12,6 +12,8 @@ import { PlatformSettings } from '../features/admin/components/platform-settings
 import { SubscriptionManagement, VendorSubscription, PlanTier as SubPlanTier } from '../features/admin/components/subscription-management';
 import { BrandKit } from '../features/admin/components/brand-kit';
 import { ProductManagement, Product } from '../features/admin/components/product-management';
+import { FlashDealsManagement } from '../features/admin/components/flash-deals-management';
+import { TrendingManagement } from '../features/admin/components/trending-management';
 
 const INITIAL_MOCK_ORDERS: GlobalOrder[] = [
   {
@@ -1243,6 +1245,14 @@ export default function AdminDashboard() {
               onApproveProduct={handleApproveProduct}
               onRejectProduct={handleRejectProduct}
             />
+          )}
+
+          {activeTab === 'flash-deals' && (
+            <FlashDealsManagement />
+          )}
+
+          {activeTab === 'trending' && (
+            <TrendingManagement products={products} />
           )}
 
           {activeTab === 'customers' && (

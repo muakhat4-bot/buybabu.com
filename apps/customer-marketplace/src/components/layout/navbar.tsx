@@ -1,6 +1,6 @@
 import * as React from 'react';
 import Link from 'next/link';
-import { Button, Card, Input, Logo } from '@villex/ui';
+import { Button, Card, Input } from '@villex/ui';
 import { MegaMenu } from './mega-menu';
 import { CartDrawer } from './cart-drawer';
 import { useCart } from '@/features/checkout/context/cart-context';
@@ -45,7 +45,9 @@ export function Navbar() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              <a href="#" className="hover:text-foreground transition-colors">Flash Deals</a>
+              <Link href="/flash-deals" className="hover:text-primary transition-colors flex items-center gap-1 font-semibold text-primary">
+                <span className="animate-pulse">⚡</span> Flash Deals
+              </Link>
               <a href="#" className="hover:text-foreground transition-colors">Stores</a>
             </nav>
           </div>

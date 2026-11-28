@@ -33,6 +33,17 @@ export interface Product {
   createdAt?: string;
   options?: any[];
   variants?: any[];
+  flashDeal?: {
+    id: string;
+    dealPrice: number;
+    originalPrice: number;
+    discountPercentage: number;
+    promotionalStock: number;
+    remainingStock: number;
+    soldCount: number;
+    startsAt: string;
+    endsAt: string;
+  };
 }
 
 interface ProductCardViewProps {
@@ -78,6 +89,8 @@ export function ProductCardView({ product, viewMode, onAddToCart }: ProductCardV
           <img
             src={product.image}
             alt={product.name}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         </Link>

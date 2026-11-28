@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin, OrderStatus, PaymentMethod, PaymentStatus } from '@villex/supabase';
+import { supabaseAdmin, OrderStatus, PaymentMethod } from '@villex/supabase';
 import { isAuthorizedAdmin, unauthorizedResponse } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';

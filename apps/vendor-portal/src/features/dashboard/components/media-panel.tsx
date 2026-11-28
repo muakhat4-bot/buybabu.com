@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input } from '@villex/ui';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@villex/ui';
+import { useAuth } from '@/context/vendor-auth-context';
 
 interface Attachment {
   id: string;
@@ -13,6 +14,7 @@ interface Attachment {
 }
 
 export function MediaPanel() {
+  const { getValidToken } = useAuth();
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [uploading, setUploading] = React.useState(false);
@@ -54,8 +56,18 @@ export function MediaPanel() {
         const formData = new FormData();
         formData.append('file', file);
 
+        let token = '';
+        try {
+          token = (await getValidToken()) || '';
+        } catch {
+          // Fallback
+        }
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         const response = await fetch('/api/upload', {
           method: 'POST',
+          headers,
           body: formData,
         });
 

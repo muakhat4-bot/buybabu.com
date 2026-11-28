@@ -243,7 +243,7 @@ export default function VendorRulesPage() {
               Sellers remain responsible for the legality, authenticity, safety, and accuracy of the products they supply.
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              The marketplace's liability is limited to the extent permitted by applicable law and as described in these policies.
+              The marketplace&apos;s liability is limited to the extent permitted by applicable law and as described in these policies.
             </p>
           </section>
 
