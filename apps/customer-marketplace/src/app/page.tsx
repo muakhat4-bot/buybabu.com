@@ -88,10 +88,20 @@ export default function Home() {
         if (trending.length > 0) setTrendingProducts(trending);
         if (hot.length > 0) setHotSales(hot);
         if (liveCats.length > 0) {
-          const merged = liveCats.map((dbCat: any) => {
+          // Deduplicate categories by normalized name
+          const seen = new Set<string>();
+          const uniqueCats = liveCats.filter((dbCat: any) => {
+            const key = (dbCat.name || '').toLowerCase().trim();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+
+          const merged = uniqueCats.map((dbCat: any) => {
             const initialMatch = INITIAL_CATEGORIES.find((c) => c.slug === dbCat.slug || c.name.toLowerCase() === dbCat.name.toLowerCase());
             return {
               ...dbCat,
+              slug: initialMatch?.slug || dbCat.slug || dbCat.name.toLowerCase().replace(/\s+/g, '-'),
               image: dbCat.image_url || initialMatch?.image || 'https://images.unsplash.com/photo-1546054454-aa26e2b734c7?w=400&auto=format&fit=crop&q=80',
               count: initialMatch?.count || 'Popular Items'
             };

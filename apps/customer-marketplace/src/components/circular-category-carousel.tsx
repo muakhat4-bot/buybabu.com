@@ -29,11 +29,12 @@ export function CircularCategoryShowcase({
   const [isReducedMotion, setIsReducedMotion] = React.useState(false);
   const [isInViewport, setIsInViewport] = React.useState(true);
 
-  // Drag / Touch gesture state
-  const [dragStartX, setDragStartX] = React.useState<number | null>(null);
-  const [dragStartY, setDragStartY] = React.useState<number | null>(null);
+  // Drag / Touch gesture state (Ref-based for synchronous click prevention without re-render lags)
+  const dragStartXRef = React.useRef<number | null>(null);
+  const dragStartYRef = React.useRef<number | null>(null);
+  const isDraggingRef = React.useRef(false);
+  const dragOccurredRef = React.useRef(false);
   const [dragDeltaX, setDragDeltaX] = React.useState(0);
-  const [isSwipingHorizontal, setIsSwipingHorizontal] = React.useState(false);
 
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const autoPlayTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -134,44 +135,53 @@ export function CircularCategoryShowcase({
   // 5. Touch / Swipe Handlers (Non-intrusive to vertical scroll)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches[0]) {
-      setDragStartX(e.touches[0].clientX);
-      setDragStartY(e.touches[0].clientY);
+      dragStartXRef.current = e.touches[0].clientX;
+      dragStartYRef.current = e.touches[0].clientY;
+      isDraggingRef.current = false;
+      dragOccurredRef.current = false;
       setDragDeltaX(0);
-      setIsSwipingHorizontal(false);
       setIsPaused(true);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (dragStartX === null || dragStartY === null || !e.touches[0]) return;
+    if (dragStartXRef.current === null || dragStartYRef.current === null || !e.touches[0]) return;
     const currentX = e.touches[0].clientX;
     const currentY = e.touches[0].clientY;
-    const dx = currentX - dragStartX;
-    const dy = currentY - dragStartY;
+    const dx = currentX - dragStartXRef.current;
+    const dy = currentY - dragStartYRef.current;
 
-    if (!isSwipingHorizontal) {
+    if (!isDraggingRef.current) {
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
-        setIsSwipingHorizontal(true);
+        isDraggingRef.current = true;
       }
     }
 
-    if (isSwipingHorizontal) {
+    if (isDraggingRef.current) {
       setDragDeltaX(dx);
     }
   };
 
   const handleTouchEnd = () => {
-    if (isSwipingHorizontal && Math.abs(dragDeltaX) > 45) {
-      if (dragDeltaX > 0) {
-        handlePrev();
-      } else {
-        handleNext();
+    if (isDraggingRef.current) {
+      dragOccurredRef.current = true;
+      // Clear drag flag shortly after touch ends so subsequent regular clicks work
+      setTimeout(() => {
+        dragOccurredRef.current = false;
+      }, 350);
+
+      if (Math.abs(dragDeltaX) > 40) {
+        if (dragDeltaX > 0) {
+          handlePrev();
+        } else {
+          handleNext();
+        }
       }
     }
-    setDragStartX(null);
-    setDragStartY(null);
+    dragStartXRef.current = null;
+    dragStartYRef.current = null;
+    isDraggingRef.current = false;
     setDragDeltaX(0);
-    setIsSwipingHorizontal(false);
     pauseAndScheduleResume();
   };
 
@@ -179,9 +189,9 @@ export function CircularCategoryShowcase({
   const isMobile = containerWidth < 640;
   const isTablet = containerWidth >= 640 && containerWidth < 1024;
 
-  const radius = isMobile ? 125 : isTablet ? 270 : 400;
-  const cardWidth = isMobile ? 125 : isTablet ? 180 : 220;
-  const cardHeight = isMobile ? 175 : isTablet ? 240 : 290;
+  const radius = isMobile ? 135 : isTablet ? 270 : 400;
+  const cardWidth = isMobile ? 118 : isTablet ? 180 : 220;
+  const cardHeight = isMobile ? 180 : isTablet ? 245 : 295;
 
   return (
     <section
@@ -222,7 +232,7 @@ export function CircularCategoryShowcase({
                 pauseAndScheduleResume();
               }}
               aria-label="Previous Category"
-              className="w-11 h-11 rounded-full bg-card/80 hover:bg-card border border-border/80 hover:border-primary/50 text-foreground shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center group active:scale-95"
+              className="w-11 h-11 rounded-full bg-card hover:bg-secondary/40 border border-border/80 hover:border-primary/50 text-foreground shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center group active:scale-95"
             >
               <svg className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M15 19l-7-7 7-7" />
@@ -234,7 +244,7 @@ export function CircularCategoryShowcase({
                 pauseAndScheduleResume();
               }}
               aria-label="Next Category"
-              className="w-11 h-11 rounded-full bg-card/80 hover:bg-card border border-border/80 hover:border-primary/50 text-foreground shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center group active:scale-95"
+              className="w-11 h-11 rounded-full bg-card hover:bg-secondary/40 border border-border/80 hover:border-primary/50 text-foreground shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center group active:scale-95"
             >
               <svg className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M9 5l7 7-7 7" />
@@ -297,13 +307,13 @@ export function CircularCategoryShowcase({
             // Realistic perspective Y-rotation
             const rotateY = -angleDeg * 0.65;
 
-            // Opacity & Depth fading
+            // Visual clarity: Keep all visible cards solid and fully opaque to prevent washed-out white bleed-through
             const opacity = isVisible
               ? isCenterActive
                 ? 1.0
                 : isAdjacent
-                  ? (isMobile ? 0.75 : 0.88)
-                  : Math.max(0.15, Math.min(0.65, cosVal))
+                  ? 0.98
+                  : 0.94
               : 0;
 
             const zIndex = Math.round((cosVal + 1) * 50);
@@ -314,14 +324,17 @@ export function CircularCategoryShowcase({
               'https://images.unsplash.com/photo-1546054454-aa26e2b734c7?w=400&auto=format&fit=crop&q=80';
 
             return (
-              <div
+              <Link
                 key={cat.slug || idx}
-                onClick={() => {
-                  if (!isCenterActive) {
-                    handleSelectIndex(idx);
+                href={`/category/${cat.slug}`}
+                onClick={(e) => {
+                  // If user performed a swipe gesture, prevent link navigation
+                  if (dragOccurredRef.current) {
+                    e.preventDefault();
+                    return;
                   }
                 }}
-                className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out cursor-pointer ${
+                className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out group block ${
                   isVisible ? 'pointer-events-auto' : 'pointer-events-none'
                 }`}
                 style={{
@@ -333,27 +346,29 @@ export function CircularCategoryShowcase({
                   visibility: opacity <= 0.05 ? 'hidden' : 'visible',
                   willChange: 'transform, opacity'
                 }}
+                aria-label={`View ${cat.name} category`}
               >
                 <div
-                  className={`relative w-full h-full rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-500 bg-card/90 backdrop-blur-md border ${
+                  className={`relative w-full h-full rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-500 bg-card border ${
                     isCenterActive
-                      ? 'border-primary shadow-[0_16px_48px_-10px_rgba(234,88,12,0.35)] ring-2 ring-primary/40'
-                      : 'border-border/60 shadow-lg shadow-black/5 hover:border-primary/40'
+                      ? 'border-2 border-primary shadow-[0_20px_50px_-12px_rgba(234,88,12,0.3)] ring-2 ring-primary/20'
+                      : 'border border-border/80 shadow-md shadow-black/8 hover:border-primary/50 hover:shadow-xl'
                   }`}
                 >
                   {/* Category Image Area */}
-                  <div className="relative w-full h-3/5 overflow-hidden bg-secondary/35">
+                  <div className="relative w-full h-[58%] overflow-hidden bg-muted">
                     <img
                       src={imageUrl}
                       alt={cat.name}
                       loading="lazy"
                       decoding="async"
-                      className={`w-full h-full object-cover transition-transform duration-700 ${
-                        isCenterActive ? 'scale-105' : 'group-hover:scale-105'
-                      }`}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      style={{
+                        filter: isCenterActive ? 'none' : 'brightness(0.97) contrast(1.02)'
+                      }}
                     />
-                    {/* Subtle Gradient Shadow on Image */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-card/95 via-transparent to-transparent" />
+                    {/* Subtle Dark Vignette at Bottom Edge (Enriches depth without white wash) */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent pointer-events-none" />
 
                     {/* Active Ribbon / Indicator */}
                     {isCenterActive && (
@@ -363,14 +378,14 @@ export function CircularCategoryShowcase({
                     )}
                   </div>
 
-                  {/* Category Details & Link */}
-                  <div className="p-2.5 md:p-4 flex flex-col justify-between flex-1 text-center bg-card">
+                  {/* Category Details */}
+                  <div className="p-2.5 md:p-3.5 flex flex-col justify-between flex-1 text-center bg-card border-t border-border/40">
                     <div>
                       <h3
-                        className={`font-extrabold text-foreground line-clamp-1 transition-colors ${
+                        className={`font-extrabold line-clamp-1 transition-colors ${
                           isCenterActive
-                            ? 'text-xs md:text-base text-primary'
-                            : 'text-[11px] md:text-sm text-foreground/90'
+                            ? 'text-xs md:text-sm text-primary'
+                            : 'text-[11px] md:text-xs text-foreground group-hover:text-primary'
                         }`}
                       >
                         {cat.name}
@@ -385,22 +400,18 @@ export function CircularCategoryShowcase({
                     {/* Action Button */}
                     <div className="mt-1.5 md:mt-2">
                       {isCenterActive ? (
-                        <Link
-                          href={`/category/${cat.slug}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center justify-center w-full py-1 md:py-1.5 px-2 md:px-3 rounded-xl bg-primary text-primary-foreground text-[11px] md:text-xs font-bold hover:bg-primary/90 transition-colors shadow-md active:scale-95"
-                        >
+                        <span className="inline-flex items-center justify-center w-full py-1 md:py-1.5 px-2 md:px-3 rounded-xl bg-primary text-primary-foreground text-[11px] md:text-xs font-bold shadow-md group-hover:bg-primary/90 transition-colors">
                           Explore Category →
-                        </Link>
+                        </span>
                       ) : (
-                        <span className="inline-block text-[10px] md:text-[11px] font-semibold text-muted-foreground/80 hover:text-primary transition-colors">
-                          Click to View
+                        <span className="inline-flex items-center justify-center w-full py-0.5 md:py-1 px-2 md:px-2.5 rounded-xl bg-secondary/80 text-foreground text-[10px] md:text-[11px] font-semibold group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-200">
+                          View Collection →
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -415,7 +426,7 @@ export function CircularCategoryShowcase({
                 pauseAndScheduleResume();
               }}
               aria-label="Previous Category"
-              className="w-9 h-9 rounded-full bg-card border border-border/80 text-foreground shadow-sm flex items-center justify-center active:scale-95"
+              className="w-9 h-9 rounded-full bg-card hover:bg-secondary/40 border border-border/80 text-foreground shadow-sm flex items-center justify-center active:scale-95"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
@@ -430,7 +441,7 @@ export function CircularCategoryShowcase({
                 pauseAndScheduleResume();
               }}
               aria-label="Next Category"
-              className="w-9 h-9 rounded-full bg-card border border-border/80 text-foreground shadow-sm flex items-center justify-center active:scale-95"
+              className="w-9 h-9 rounded-full bg-card hover:bg-secondary/40 border border-border/80 text-foreground shadow-sm flex items-center justify-center active:scale-95"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
